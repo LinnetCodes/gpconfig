@@ -1,6 +1,6 @@
 [project]
 name = "gpconfig"
-version = "0.3.0"
+version = "0.3.1"
 description = "A type-safe, YAML-based configuration management library built on Pydantic"
 readme = "README.md"
 license = "MIT"
