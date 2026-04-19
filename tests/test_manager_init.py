@@ -72,7 +72,7 @@ class TestConfigFolderResolution:
         """User home subfolder is used when no explicit path or env var."""
         # Setup home folder
         home_configs = tmp_path / "home_configs"
-        project_folder = home_configs / "myapp"
+        project_folder = home_configs / ".myapp"
         project_folder.mkdir(parents=True)
         (project_folder / "global_env.yaml").write_text("version: 1.0\n")
 

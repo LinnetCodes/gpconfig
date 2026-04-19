@@ -92,7 +92,7 @@ class GPConfigManager:
     Config Folder Search Rules:
         1. Explicit parameter - cfg_folder argument if provided
         2. Environment variable - {PROJECT_NAME}_CFG_PATH (uppercase)
-        3. User home subfolder - ~/{project_name}/
+        3. User home subfolder - ~/.{project_name}/
 
     A valid config folder must contain global_env.yaml.
     """
@@ -166,7 +166,7 @@ class GPConfigManager:
             return cfg_path
 
         # Rule 3: User home subfolder
-        home_path = Path.home() / project_name
+        home_path = Path.home() / f".{project_name}"
         if home_path.exists():
             cfg_path = home_path.resolve()
             self._validate_cfg_folder(cfg_path, f"home folder {home_path}")
@@ -695,7 +695,7 @@ class GPConfigManager:
                 folder_path = Path(env_path).resolve()
             else:
                 # Fallback to home directory
-                folder_path = Path.home() / project_name
+                folder_path = Path.home() / f".{project_name}"
 
         # Check if folder already exists
         if folder_path.exists():

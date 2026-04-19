@@ -143,7 +143,7 @@ class TestMakeNewProjectConfigFolder:
         assert env_path.exists()
 
     def test_uses_home_directory_as_fallback(self, tmp_path: Path, monkeypatch):
-        """Should use ~/{project_name}/ when no path or env var."""
+        """Should use ~/.{project_name}/ when no path or env var."""
         # Arrange - mock Path.home()
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
@@ -156,7 +156,7 @@ class TestMakeNewProjectConfigFolder:
         )
 
         # Assert
-        expected_path = tmp_path / "testproject"
+        expected_path = tmp_path / ".testproject"
         assert result == expected_path
         assert expected_path.exists()
 
