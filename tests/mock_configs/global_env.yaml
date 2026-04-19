@@ -1,0 +1,7 @@
+# Global environment configuration
+version: "1.0.0"
+app_name: "TestApp"
+debug: true
+log_level: "DEBUG"
+max_connections: 100
+timeout_seconds: 30

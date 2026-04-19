@@ -1,0 +1,7 @@
+# Primary database configuration (2 levels deep: databases/primary)
+cfg_class_name: "DatabaseRoleConfig"
+role: "primary"
+host: "primary.db.example.com"
+port: 5432
+database: "main_db"
+replication_enabled: true

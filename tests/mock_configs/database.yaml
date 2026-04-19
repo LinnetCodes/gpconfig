@@ -1,0 +1,10 @@
+# Database configuration (flat config with nested values)
+cfg_class_name: "DatabaseConfig"
+configured_class_name: "Database"
+host: "db.example.com"
+port: 5432
+username: "admin"
+password: "secret123"
+database: "myapp_db"
+pool_size: 10
+ssl_mode: "require"

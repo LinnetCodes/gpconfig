@@ -1,0 +1,6 @@
+# Notification worker configuration (2 levels deep: services/workers)
+cfg_class_name: "WorkerConfig"
+worker_type: "notification"
+concurrency: 10
+queue_name: "notification_queue"
+retry_attempts: 5

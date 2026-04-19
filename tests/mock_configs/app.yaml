@@ -1,0 +1,8 @@
+# Application configuration (flat config)
+cfg_class_name: "AppConfig"
+configured_class_name: "Application"
+app_name: "my-application"
+host: "0.0.0.0"
+port: 8080
+workers: 4
+enable_ssl: false

@@ -1,0 +1,7 @@
+# Redis cache configuration (1 level deep: cache)
+cfg_class_name: "CacheConfig"
+configured_class_name: "CacheService"
+provider: "redis"
+host: "cache.example.com"
+port: 6379
+ttl_seconds: 3600

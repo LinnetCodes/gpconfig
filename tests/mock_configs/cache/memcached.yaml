@@ -1,0 +1,7 @@
+# Memcached cache configuration (1 level deep: cache)
+cfg_class_name: "CacheConfig"
+configured_class_name: "CacheService"
+provider: "memcached"
+host: "memcache.example.com"
+port: 11211
+ttl_seconds: 1800

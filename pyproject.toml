@@ -1,0 +1,54 @@
+[project]
+name = "gpconfig"
+version = "0.3.0"
+description = "A type-safe, YAML-based configuration management library built on Pydantic"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    {name = "HAN Lin", email = "lin_han@foxmail.com"},
+]
+keywords = [
+    "configuration",
+    "config",
+    "settings",
+    "yaml",
+    "pydantic",
+    "type-safe",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/hanlin-pro/gpconfig"
+Documentation = "https://github.com/hanlin-pro/gpconfig#readme"
+Repository = "https://github.com/hanlin-pro/gpconfig"
+Issues = "https://github.com/hanlin-pro/gpconfig/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

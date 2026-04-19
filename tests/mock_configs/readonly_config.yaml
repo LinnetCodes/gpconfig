@@ -1,0 +1,4 @@
+# Readonly configuration for testing
+cfg_class_name: "ReadonlyConfig"
+api_endpoint: "https://api.example.com"
+readonly: true

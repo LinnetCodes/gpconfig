@@ -1,0 +1,7 @@
+# Replica database configuration (2 levels deep: databases/replica)
+cfg_class_name: "DatabaseRoleConfig"
+role: "replica"
+host: "replica.db.example.com"
+port: 5432
+database: "main_db"
+read_only: true

@@ -1,0 +1,8 @@
+# API v2 configuration (3 levels deep: services/api/v2)
+cfg_class_name: "ApiConfig"
+version: "v2"
+base_path: "/api/v2"
+rate_limit: 200
+timeout_ms: 3000
+auth_required: true
+graphql_enabled: true
