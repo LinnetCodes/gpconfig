@@ -1,9 +1,5 @@
 # gpconfig
 
-简体中文 | [English](README.md)
-
-通用的 Python 项目配置管理库。
-
 基于 Pydantic 构建的类型安全、YAML 格式的配置管理库。
 
 ## 特性
@@ -142,9 +138,9 @@ manager.save(db_config, "backups/database_backup")
 
 | 组件 | 说明 |
 |------|------|
-| `GPConfig` | 所有配置类的基类 |
-| `GPConfigurable` | 从配置创建的对象的基类 |
-| `GPConfigManager` | 管理配置文件夹、加载和对象创建 |
+| [`GPConfig`](gpconfig.md) | 所有配置类的基类 |
+| [`GPConfigurable`](configurable.md) | 从配置创建的对象的基类 |
+| [`GPConfigManager`](manager.md) | 管理配置文件夹、加载和对象创建 |
 
 ## 异常
 
@@ -157,9 +153,7 @@ manager.save(db_config, "backups/database_backup")
 | `RegistrationError` | 类注册问题 |
 | `ConfigValidationError` | 配置文件验证失败 |
 
-## API 参考
-
-详细用法请参阅 [API 文档](docs/api/cn/index.md)。
+详细信息请参阅 [异常文档](exceptions.md)。
 
 ## 许可证
 

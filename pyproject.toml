@@ -44,10 +44,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/hanlin-pro/gpconfig"
-Documentation = "https://github.com/hanlin-pro/gpconfig#readme"
-Repository = "https://github.com/hanlin-pro/gpconfig"
-Issues = "https://github.com/hanlin-pro/gpconfig/issues"
+Homepage = "https://github.com/LinnetCodes/gpconfig"
+Documentation = "https://github.com/LinnetCodes/gpconfig#readme"
+Repository = "https://github.com/LinnetCodes/gpconfig"
+Issues = "https://github.com/LinnetCodes/gpconfig/issues"
 
 [build-system]
 requires = ["hatchling"]

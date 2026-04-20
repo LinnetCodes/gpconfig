@@ -35,7 +35,7 @@ The config folder is searched in this order:
 
 1. **Explicit parameter** - `cfg_folder` parameter
 2. **Environment variable** - `{PROJECT_NAME}_CFG_PATH` (uppercase)
-3. **User directory** - `~/{project_name}/`
+3. **User directory** - `~/.{project_name}/`
 
 ### Examples
 
@@ -51,7 +51,7 @@ manager = GPConfigManager("myapp", cfg_folder=Path("/etc/myapp"))
 manager = GPConfigManager("myapp")
 
 # Option 3: Use user directory
-# Config folder: ~/myapp/
+# Config folder: ~/.myapp/
 manager = GPConfigManager("myapp")
 ```
 
@@ -242,7 +242,7 @@ folder = GPConfigManager.make_new_project_config_folder(
 )
 
 # Result:
-# ~/myapp/
+# ~/.myapp/
 # ├── global_env.yaml
 # ├── database.yaml
 # └── cache/
@@ -253,7 +253,7 @@ folder = GPConfigManager.make_new_project_config_folder(
 
 1. Explicit parameter `cfg_folder_path`
 2. Environment variable `{PROJECT_NAME}_CFG_PATH`
-3. User home directory `~/{project_name}/`
+3. User home directory `~/.{project_name}/`
 
 **Exceptions:**
 
@@ -413,131 +413,6 @@ new_config = DatabaseConfig(
 )
 new_config.name = "test"
 manager.save(new_config)  # Save to default_cfg_path/test.yaml
-```
-
-## Complete Example
-
-### Basic Workflow
-
-```python
-from typing import ClassVar
-from pathlib import Path
-from gpconfig import GPConfig, GPConfigurable, GPConfigManager
-
-# 1. Define config classes
-class DatabaseConfig(GPConfig):
-    cfg_class_name: ClassVar[str] = "DatabaseConfig"
-    host: str
-    port: int = 5432
-    username: str
-    password: str
-    database: str
-
-class LLMConfig(GPConfig):
-    cfg_class_name: ClassVar[str] = "LLMConfig"
-    api_key: str
-    model: str
-    temperature: float = 0.7
-
-# 2. Define configurable objects
-class Database(GPConfigurable):
-    def __init__(self, config: DatabaseConfig) -> None:
-        super().__init__(config)
-        self.host = config.host
-        self.port = config.port
-        self.username = config.username
-        self.password = config.password
-        self.database = config.database
-
-class LLMProvider(GPConfigurable):
-    def __init__(self, config: LLMConfig) -> None:
-        super().__init__(config)
-        self.api_key = config.api_key
-        self.model = config.model
-        self.temperature = config.temperature
-
-# 3. Initialize manager
-manager = GPConfigManager("myapp")
-
-# 4. Register classes (separately register config class and configurable class)
-GPConfigManager.register_config_class(DatabaseConfig)
-GPConfigManager.register_configurable_class(Database)
-GPConfigManager.register_config_class(LLMConfig)
-GPConfigManager.register_configurable_class(LLMProvider)
-
-# 5. Read configs
-debug = manager.get_config("global_env.debug")
-print(f"Debug mode: {debug}")
-
-db_config = manager.get_config("database")
-print(f"Database host: {db_config.host}")
-
-# 6. Create objects (config file needs configured_class_name)
-db = manager.get_object("database")
-llm = manager.get_object("llm.openai")
-
-# 7. List configs
-for item in manager.list_configs():
-    print(f"Found: {item}")
-
-# 8. Save config
-db_config.port = 5433
-db_config.save()
-```
-
-### YAML Config File Examples
-
-```yaml
-# database.yaml
-cfg_class_name: "DatabaseConfig"
-configured_class_name: "Database"
-host: localhost
-port: 5432
-username: admin
-password: secret
-database: myapp
-```
-
-```yaml
-# llm/openai.yaml
-cfg_class_name: "LLMConfig"
-configured_class_name: "LLMProvider"
-api_key: sk-xxx
-model: gpt-4
-temperature: 0.7
-```
-
-### Environment Variable Configuration
-
-```python
-import os
-
-# Set environment variable
-os.environ["MYAPP_CFG_PATH"] = "/etc/myapp/configs"
-
-# Manager automatically uses the environment variable
-manager = GPConfigManager("myapp")
-print(manager.cfg_folder)  # /etc/myapp/configs
-```
-
-### Creating New Configs
-
-```python
-# Create new config
-new_db_config = DatabaseConfig(
-    host="localhost",
-    username="admin",
-    password="secret",
-    database="test_db",
-    port=5433
-)
-new_db_config.name = "test_database"
-
-# Save to file
-manager.save(new_db_config)
-
-# Now can load it
-loaded = manager.get_config("test_database")
 ```
 
 ## GPConfigFolder

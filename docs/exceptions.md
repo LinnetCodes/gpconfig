@@ -106,12 +106,6 @@ class ConfigNotFoundError(GPConfigError):
 |-----------|------|-------------|
 | `path` | `str` | The config path that was not found |
 
-### Trigger Conditions
-
-- Config file doesn't exist
-- Config key path doesn't exist
-- Folder doesn't exist
-
 ### Examples
 
 ```python
@@ -142,10 +136,6 @@ class ConfigReadonlyError(GPConfigError):
     def __init__(self, config_name: str):
         super().__init__(f"Config '{config_name}' is readonly and cannot be modified")
 ```
-
-### Trigger Conditions
-
-- Calling `save()` on a config with `readonly=True`
 
 ### Examples
 
@@ -225,27 +215,6 @@ except RegistrationError as e:
     # Output: Config class name 'MyConfig' is already registered
 ```
 
-```python
-# Calling get_object() but not registered
-try:
-    obj = manager.get_object("some_config")
-except RegistrationError as e:
-    print(f"Error: {e}")
-    # Output: Config at path 'some_config' was loaded as dict (no registered config class)
-```
-
-```python
-# Config class has no configured_class_name
-GPConfigManager.register_config_class(MyConfig)  # Only register config class
-# But config file is missing configured_class_name field
-
-try:
-    obj = manager.get_object("my_config")
-except RegistrationError as e:
-    print(f"Error: {e}")
-    # Output: No configured_class_name found in config at path 'my_config'
-```
-
 ## ConfigValidationError
 
 Raised when a config file fails validation.
@@ -266,12 +235,6 @@ class ConfigValidationError(GPConfigError):
 |-----------|------|-------------|
 | `path` | `str` | The config path that failed validation |
 | `original_error` | `Exception` | The original Pydantic validation error |
-
-### Trigger Conditions
-
-- Config file content doesn't match config class types
-- Missing required fields
-- Field type conversion failed
 
 ### Examples
 
@@ -295,98 +258,6 @@ try:
 except ConfigValidationError as e:
     print(f"Config validation failed: {e.path}")
     print(f"Original error: {e.original_error}")
-```
-
-```python
-# Missing required field
-# Assume server.yaml contains:
-# port: 8080
-# Missing host field
-
-try:
-    config = manager.get_config("server", ServerConfig)
-except ConfigValidationError as e:
-    print(f"Missing required field: {e}")
-```
-
-## Complete Exception Handling Example
-
-```python
-from gpconfig import (
-    GPConfig,
-    GPConfigurable,
-    GPConfigManager,
-    GPConfigError,
-    ConfigFolderError,
-    ConfigNotFoundError,
-    ConfigReadonlyError,
-    RegistrationError,
-    ConfigValidationError,
-)
-from typing import ClassVar
-
-class DatabaseConfig(GPConfig):
-    cfg_class_name: ClassVar[str] = "DatabaseConfig"
-    host: str
-    port: int = 5432
-
-class Database(GPConfigurable):
-    def __init__(self, config: DatabaseConfig) -> None:
-        super().__init__(config)
-        self.host = config.host
-        self.port = config.port
-
-def get_database():
-    """Get database connection with complete error handling"""
-    try:
-        manager = GPConfigManager("myapp")
-        # Register config class and configurable class separately
-        GPConfigManager.register_config_class(DatabaseConfig)
-        GPConfigManager.register_configurable_class(Database)
-        return manager.get_object("database")
-
-    except ConfigFolderError as e:
-        print(f"Config folder issue: {e}")
-        print("Please ensure config folder exists and contains global_env.yaml")
-        return None
-
-    except ConfigNotFoundError as e:
-        print(f"Config not found: {e.path}")
-        print("Please check if config file exists")
-        return None
-
-    except ConfigValidationError as e:
-        print(f"Config validation failed: {e.path}")
-        print(f"Details: {e.original_error}")
-        return None
-
-    except RegistrationError as e:
-        print(f"Registration error: {e}")
-        print("Please ensure config class and configurable class are properly registered")
-        return None
-
-    except ConfigReadonlyError as e:
-        print(f"Readonly config: {e}")
-        return None
-
-    except GPConfigError as e:
-        # Catch all other gpconfig exceptions
-        print(f"Config error: {e}")
-        return None
-
-# Usage
-db = get_database()
-if db:
-    print(f"Connected to {db.host}:{db.port}")
-```
-
-**Config file example (database.yaml):**
-
-```yaml
-cfg_class_name: "DatabaseConfig"
-configured_class_name: "Database"
-host: localhost
-port: 5432
 ```
 
 ## Best Practices

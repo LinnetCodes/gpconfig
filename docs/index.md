@@ -1,9 +1,5 @@
 # gpconfig
 
-[简体中文](README.zh-CN.md) | English
-
-General Purpose Configuration management library for Python projects.
-
 A type-safe, YAML-based configuration management library built on Pydantic.
 
 ## Features
@@ -142,9 +138,9 @@ manager.save(db_config, "backups/database_backup")
 
 | Component | Description |
 |-----------|-------------|
-| `GPConfig` | Base class for all config classes |
-| `GPConfigurable` | Base class for objects created from configs |
-| `GPConfigManager` | Manages config folder, loading, and object creation |
+| [`GPConfig`](gpconfig.md) | Base class for all config classes |
+| [`GPConfigurable`](configurable.md) | Base class for objects created from configs |
+| [`GPConfigManager`](manager.md) | Manages config folder, loading, and object creation |
 
 ## Exceptions
 
@@ -157,9 +153,7 @@ manager.save(db_config, "backups/database_backup")
 | `RegistrationError` | Class registration issues |
 | `ConfigValidationError` | Config file validation failed |
 
-## API Reference
-
-See the [API documentation](docs/api/en/index.md) for detailed usage.
+See [Exceptions Documentation](exceptions.md) for details.
 
 ## License
 

@@ -106,12 +106,6 @@ class ConfigNotFoundError(GPConfigError):
 |------|------|------|
 | `path` | `str` | 未找到的配置路径 |
 
-### 触发场景
-
-- 配置文件不存在
-- 配置键路径不存在
-- 文件夹不存在
-
 ### 示例
 
 ```python
@@ -142,10 +136,6 @@ class ConfigReadonlyError(GPConfigError):
     def __init__(self, config_name: str):
         super().__init__(f"Config '{config_name}' is readonly and cannot be modified")
 ```
-
-### 触发场景
-
-- 对 `readonly=True` 的配置调用 `save()`
 
 ### 示例
 
@@ -225,27 +215,6 @@ except RegistrationError as e:
     # 输出: Config class name 'MyConfig' is already registered
 ```
 
-```python
-# 调用 get_object() 但未注册
-try:
-    obj = manager.get_object("some_config")
-except RegistrationError as e:
-    print(f"错误: {e}")
-    # 输出: Config at path 'some_config' was loaded as dict (no registered config class)
-```
-
-```python
-# 配置类没有 configured_class_name
-GPConfigManager.register_config_class(MyConfig)  # 只注册配置类
-# 但配置文件中缺少 configured_class_name 字段
-
-try:
-    obj = manager.get_object("my_config")
-except RegistrationError as e:
-    print(f"错误: {e}")
-    # 输出: No configured_class_name found in config at path 'my_config'
-```
-
 ## ConfigValidationError
 
 配置文件验证失败时抛出。
@@ -266,12 +235,6 @@ class ConfigValidationError(GPConfigError):
 |------|------|------|
 | `path` | `str` | 验证失败的配置路径 |
 | `original_error` | `Exception` | 原始的 Pydantic 验证错误 |
-
-### 触发场景
-
-- 配置文件内容与配置类类型不匹配
-- 缺少必需字段
-- 字段类型转换失败
 
 ### 示例
 
@@ -295,98 +258,6 @@ try:
 except ConfigValidationError as e:
     print(f"配置验证失败: {e.path}")
     print(f"原始错误: {e.original_error}")
-```
-
-```python
-# 缺少必需字段
-# 假设 server.yaml 内容为:
-# port: 8080
-# 缺少 host 字段
-
-try:
-    config = manager.get_config("server", ServerConfig)
-except ConfigValidationError as e:
-    print(f"缺少必需字段: {e}")
-```
-
-## 完整异常处理示例
-
-```python
-from gpconfig import (
-    GPConfig,
-    GPConfigurable,
-    GPConfigManager,
-    GPConfigError,
-    ConfigFolderError,
-    ConfigNotFoundError,
-    ConfigReadonlyError,
-    RegistrationError,
-    ConfigValidationError,
-)
-from typing import ClassVar
-
-class DatabaseConfig(GPConfig):
-    cfg_class_name: ClassVar[str] = "DatabaseConfig"
-    host: str
-    port: int = 5432
-
-class Database(GPConfigurable):
-    def __init__(self, config: DatabaseConfig) -> None:
-        super().__init__(config)
-        self.host = config.host
-        self.port = config.port
-
-def get_database():
-    """获取数据库连接，包含完整的错误处理"""
-    try:
-        manager = GPConfigManager("myapp")
-        # 分别注册配置类和可配置类
-        GPConfigManager.register_config_class(DatabaseConfig)
-        GPConfigManager.register_configurable_class(Database)
-        return manager.get_object("database")
-
-    except ConfigFolderError as e:
-        print(f"配置文件夹问题: {e}")
-        print("请确保配置文件夹存在并包含 global_env.yaml")
-        return None
-
-    except ConfigNotFoundError as e:
-        print(f"配置未找到: {e.path}")
-        print("请检查配置文件是否存在")
-        return None
-
-    except ConfigValidationError as e:
-        print(f"配置验证失败: {e.path}")
-        print(f"详细信息: {e.original_error}")
-        return None
-
-    except RegistrationError as e:
-        print(f"注册错误: {e}")
-        print("请确保正确注册了配置类和可配置类")
-        return None
-
-    except ConfigReadonlyError as e:
-        print(f"只读配置: {e}")
-        return None
-
-    except GPConfigError as e:
-        # 捕获所有其他 gpconfig 异常
-        print(f"配置错误: {e}")
-        return None
-
-# 使用
-db = get_database()
-if db:
-    print(f"已连接到 {db.host}:{db.port}")
-```
-
-**配置文件示例 (database.yaml)：**
-
-```yaml
-cfg_class_name: "DatabaseConfig"
-configured_class_name: "Database"
-host: localhost
-port: 5432
 ```
 
 ## 最佳实践

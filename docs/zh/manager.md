@@ -35,7 +35,7 @@ class GPConfigManager:
 
 1. **显式参数** - `cfg_folder` 参数
 2. **环境变量** - `{PROJECT_NAME}_CFG_PATH`（大写）
-3. **用户目录** - `~/{project_name}/`
+3. **用户目录** - `~/.{project_name}/`
 
 ### 示例
 
@@ -51,7 +51,7 @@ manager = GPConfigManager("myapp", cfg_folder=Path("/etc/myapp"))
 manager = GPConfigManager("myapp")
 
 # 方式 3：使用用户目录
-# 配置文件夹: ~/myapp/
+# 配置文件夹: ~/.myapp/
 manager = GPConfigManager("myapp")
 ```
 
@@ -242,7 +242,7 @@ folder = GPConfigManager.make_new_project_config_folder(
 )
 
 # 结果:
-# ~/myapp/
+# ~/.myapp/
 # ├── global_env.yaml
 # ├── database.yaml
 # └── cache/
@@ -253,7 +253,7 @@ folder = GPConfigManager.make_new_project_config_folder(
 
 1. 显式参数 `cfg_folder_path`
 2. 环境变量 `{PROJECT_NAME}_CFG_PATH`
-3. 用户主目录 `~/{project_name}/`
+3. 用户主目录 `~/.{project_name}/`
 
 **异常：**
 
@@ -413,131 +413,6 @@ new_config = DatabaseConfig(
 )
 new_config.name = "test"
 manager.save(new_config)  # 保存到 default_cfg_path/test.yaml
-```
-
-## 完整示例
-
-### 基本工作流
-
-```python
-from typing import ClassVar
-from pathlib import Path
-from gpconfig import GPConfig, GPConfigurable, GPConfigManager
-
-# 1. 定义配置类
-class DatabaseConfig(GPConfig):
-    cfg_class_name: ClassVar[str] = "DatabaseConfig"
-    host: str
-    port: int = 5432
-    username: str
-    password: str
-    database: str
-
-class LLMConfig(GPConfig):
-    cfg_class_name: ClassVar[str] = "LLMConfig"
-    api_key: str
-    model: str
-    temperature: float = 0.7
-
-# 2. 定义可配置对象
-class Database(GPConfigurable):
-    def __init__(self, config: DatabaseConfig) -> None:
-        super().__init__(config)
-        self.host = config.host
-        self.port = config.port
-        self.username = config.username
-        self.password = config.password
-        self.database = config.database
-
-class LLMProvider(GPConfigurable):
-    def __init__(self, config: LLMConfig) -> None:
-        super().__init__(config)
-        self.api_key = config.api_key
-        self.model = config.model
-        self.temperature = config.temperature
-
-# 3. 初始化管理器
-manager = GPConfigManager("myapp")
-
-# 4. 注册类（分别注册配置类和可配置类）
-GPConfigManager.register_config_class(DatabaseConfig)
-GPConfigManager.register_configurable_class(Database)
-GPConfigManager.register_config_class(LLMConfig)
-GPConfigManager.register_configurable_class(LLMProvider)
-
-# 5. 读取配置
-debug = manager.get_config("global_env.debug")
-print(f"Debug mode: {debug}")
-
-db_config = manager.get_config("database")
-print(f"Database host: {db_config.host}")
-
-# 6. 创建对象（配置文件中需设置 configured_class_name）
-db = manager.get_object("database")
-llm = manager.get_object("llm.openai")
-
-# 7. 列出配置
-for item in manager.list_configs():
-    print(f"Found: {item}")
-
-# 8. 保存配置
-db_config.port = 5433
-db_config.save()
-```
-
-### YAML 配置文件示例
-
-```yaml
-# database.yaml
-cfg_class_name: "DatabaseConfig"
-configured_class_name: "Database"
-host: localhost
-port: 5432
-username: admin
-password: secret
-database: myapp
-```
-
-```yaml
-# llm/openai.yaml
-cfg_class_name: "LLMConfig"
-configured_class_name: "LLMProvider"
-api_key: sk-xxx
-model: gpt-4
-temperature: 0.7
-```
-
-### 环境变量配置
-
-```python
-import os
-
-# 设置环境变量
-os.environ["MYAPP_CFG_PATH"] = "/etc/myapp/configs"
-
-# 管理器会自动使用环境变量
-manager = GPConfigManager("myapp")
-print(manager.cfg_folder)  # /etc/myapp/configs
-```
-
-### 创建新配置
-
-```python
-# 创建新配置
-new_db_config = DatabaseConfig(
-    host="localhost",
-    username="admin",
-    password="secret",
-    database="test_db",
-    port=5433
-)
-new_db_config.name = "test_database"
-
-# 保存到文件
-manager.save(new_db_config)
-
-# 现在可以加载
-loaded = manager.get_config("test_database")
 ```
 
 ## GPConfigFolder
