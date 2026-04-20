@@ -45,7 +45,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/LinnetCodes/gpconfig"
-Documentation = "https://github.com/LinnetCodes/gpconfig#readme"
+Documentation = "https://linnetcodes.github.io/gpconfig"
 Repository = "https://github.com/LinnetCodes/gpconfig"
 Issues = "https://github.com/LinnetCodes/gpconfig/issues"
 

@@ -1,7 +1,7 @@
 site_name: gpconfig
 site_description: A type-safe, YAML-based configuration management library built on Pydantic
-site_url: https://LinnetCodes.github.io/gpconfig/
-repo_url: https://github.com/LinnetCodes/gpconfig
+site_url: https://linnetcodes.github.io/gpconfig
+repo_url: https://github.com/linnetcodes/gpconfig
 repo_name: LinnetCodes/gpconfig
 edit_uri: edit/mkdocs_pre_publish/docs/
 copyright: Copyright &copy; 2024 HAN Lin
