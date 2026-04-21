@@ -159,7 +159,7 @@ manager.save(db_config, "backups/database_backup")
 
 ## API Reference
 
-See the [API documentation](docs/api/en/index.md) for detailed usage.
+See the [API documentation](docs/index.md) for detailed usage.
 
 ## License
 
