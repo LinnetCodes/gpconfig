@@ -149,10 +149,11 @@ manager.save(db_config, "backups/database_backup")
 ## Exceptions
 
 | Exception | Description |
-|-----------|-------------|
+|-----------|----------|
 | `GPConfigError` | Base exception for all gpconfig errors |
 | `ConfigFolderError` | Config folder not found or invalid |
 | `ConfigNotFoundError` | Requested config path does not exist |
+| `IllegalPathError` | Config path is malformed or escapes cfg_folder |
 | `ConfigReadonlyError` | Attempted to modify readonly config |
 | `RegistrationError` | Class registration issues |
 | `ConfigValidationError` | Config file validation failed |

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-05
+
+**The first Beta release.** This version addresses all findings from a comprehensive
+code review: security hardening (path validation, cfg_folder containment), fail-early
+validation (`__init_subclass__`, project_name collision detection), cache consistency,
+and documentation completeness. See the sections below for details.
+
 ### Added
 - `IllegalPathError` exception (in `gpconfig.exceptions`, exported from `gpconfig`): raised when a config path is malformed (empty, dots-only, consecutive dots, leading/trailing dot, or a literal `/`/`\` in cfg_path style) or escapes `cfg_folder`. Carries a `path` attribute holding the offending path string.
 - `GPConfigManager.reset_registries()` classmethod: clears both `_config_classes` and `_configurable_classes` (public API for test teardown and re-initialisation).
@@ -36,4 +43,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented the read-only `global_env` contract (`MappingProxyType`, mutation errors, `dict(...)` copy) in both EN and ZH manager references.
 - Documented the `default_cfg_path` folder-path contract and `__init_subclass__` fail-early validation in both EN and ZH GPConfig references.
 
-[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/HEAD
+[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.3...HEAD
+[0.3.3]: https://github.com/LinnetCodes/gpconfig/releases/tag/version-0.3.3
