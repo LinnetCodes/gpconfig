@@ -16,11 +16,9 @@ from gpconfig.exceptions import ConfigNotFoundError
 @pytest.fixture(autouse=True)
 def reset_registry():
     """Reset class-level registries before and after each test."""
-    GPConfigManager._config_classes = {}
-    GPConfigManager._configurable_classes = {}
+    GPConfigManager.reset_registries()
     yield
-    GPConfigManager._config_classes = {}
-    GPConfigManager._configurable_classes = {}
+    GPConfigManager.reset_registries()
 
 
 @pytest.fixture
