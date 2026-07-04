@@ -69,6 +69,16 @@ myapp/
     └── openai.yaml
 ```
 
+> **Constraint: project_name must not collide with a config subdirectory name.**
+>
+> If `cfg_folder` contains a top-level subdirectory whose name equals
+> `project_name`, `GPConfigManager.__init__` raises `ConfigFolderError`. This is
+> because the optional `project_name` path prefix (e.g. `get_config("myapp.x")`)
+> would shadow that subdirectory, making it unreachable via dot-notation. The
+> check runs once at construction (scanning one level deep; empty subdirectories
+> also trigger it). Rename either the project or the subdirectory if you hit
+> this.
+
 ## Properties
 
 ### project_name

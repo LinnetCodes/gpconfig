@@ -69,6 +69,13 @@ myapp/
     └── openai.yaml
 ```
 
+> **约束：project_name 不能与配置子目录名冲突。**
+>
+> 如果 `cfg_folder` 包含一个与 `project_name` 同名的顶层子目录，`GPConfigManager.__init__`
+> 会抛出 `ConfigFolderError`。这是因为可选的 `project_name` 路径前缀（例如
+> `get_config("myapp.x")`）会遮蔽该子目录，使其无法通过点号表示法访问。该检查在构造时
+> 执行一次（只扫描一层；空子目录也会触发）。如果遇到此错误，请重命名项目名或子目录。
+
 ## 属性
 
 ### project_name

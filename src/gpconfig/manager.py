@@ -114,10 +114,14 @@ class GPConfigManager:
                        If not provided, will search using the resolution rules.
 
         Raises:
-            ConfigFolderError: If config folder doesn't exist or lacks global_env.yaml.
+            ConfigFolderError: If config folder doesn't exist, lacks
+                global_env.yaml, or contains a top-level subdirectory whose
+                name equals project_name (which the optional project-name path
+                prefix would shadow).
         """
         self._project_name = project_name
         self._cfg_folder = self._resolve_cfg_folder(project_name, cfg_folder)
+        self._check_project_name_collision()
         self._global_env = self._load_global_env()
         self._config_cache: dict[str, Any] = {}
         self._folder_cache: dict[str, GPConfigFolder] = {}
@@ -220,6 +224,33 @@ class GPConfigManager:
         """
         global_env_path = self._cfg_folder / "global_env.yaml"
         return self._load_yaml_dict(global_env_path, str(global_env_path))
+
+    def _check_project_name_collision(self) -> None:
+        """Raise ConfigFolderError if a top-level subdir of cfg_folder equals project_name.
+
+        The optional project_name path prefix (e.g. get_config("myapp.x")) would
+        shadow a same-named subdirectory, making that subdirectory unreachable
+        via dot-notation. Fail early at construction rather than silently
+        producing ambiguous path resolution.
+
+        Only the first path segment matters, so this scans one level deep. Empty
+        subdirectories also trigger (strict fail-early). cfg_folder's own name
+        being equal to project_name does NOT trigger (that is cfg_folder's own
+        name, not a child).
+
+        Raises:
+            ConfigFolderError: If cfg_folder contains a child directory whose
+                name equals project_name (empty or not).
+        """
+        for child in self._cfg_folder.iterdir():
+            if child.is_dir() and child.name == self._project_name:
+                raise ConfigFolderError(
+                    f"Config subdirectory '{self._project_name}/' inside "
+                    f"cfg_folder collides with project_name; the optional "
+                    f"project-name path prefix would shadow it. Rename the "
+                    f"subdirectory so it does not equal project_name "
+                    f"('{self._project_name}')."
+                )
 
     def _load_yaml_dict(self, file_path: Path, path_for_error: str) -> dict:
         """Load a YAML file and validate it returns a dict.

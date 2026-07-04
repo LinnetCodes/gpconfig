@@ -121,3 +121,77 @@ class TestGlobalEnvLoading:
         manager = GPConfigManager("testproject", cfg_folder=tmp_path)
 
         assert manager.global_env == {}
+
+
+class TestProjectNameCollision:
+    """Test fail-early detection of a config subdirectory named after project_name.
+
+    The optional project_name path prefix (e.g. get_config("myapp.x")) would
+    shadow a same-named top-level subdirectory, making it unreachable via
+    dot-notation. Construction must reject this layout.
+    """
+
+    def test_collision_raises(self, tmp_path: Path):
+        """A subdir named exactly after project_name raises ConfigFolderError."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        # Subdirectory whose name equals project_name, with content inside.
+        collision_dir = tmp_path / "myapp"
+        collision_dir.mkdir()
+        (collision_dir / "stuff.yaml").write_text("key: value\n")
+
+        with pytest.raises(ConfigFolderError) as exc_info:
+            GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        message = str(exc_info.value)
+        # Message should mention project_name and the remedy (rename).
+        assert "myapp" in message
+        assert "Rename" in message or "rename" in message
+
+    def test_empty_collision_subdir_also_raises(self, tmp_path: Path):
+        """An empty collision subdir still raises (strict fail-early)."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        # Empty subdirectory named after project_name.
+        (tmp_path / "myapp").mkdir()
+
+        with pytest.raises(ConfigFolderError) as exc_info:
+            GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        assert "myapp" in str(exc_info.value)
+
+    def test_no_collision_unrelated_subdirs_works(self, tmp_path: Path):
+        """Unrelated subdir names construct successfully."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        (tmp_path / "database").mkdir()
+        (tmp_path / "database" / "pg.yaml").write_text("host: localhost\n")
+
+        manager = GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        assert manager.project_name == "myapp"
+        assert manager.cfg_folder == tmp_path.resolve()
+
+    def test_cfg_folder_itself_named_after_project_name_is_fine(
+        self, tmp_path: Path
+    ):
+        """cfg_folder's own name being project_name does NOT trigger (not a child)."""
+        # cfg_folder itself is named 'myapp'.
+        cfg_folder = tmp_path / "myapp"
+        cfg_folder.mkdir()
+        (cfg_folder / "global_env.yaml").write_text("version: 1.0\n")
+        (cfg_folder / "database").mkdir()
+        (cfg_folder / "database" / "pg.yaml").write_text("host: localhost\n")
+
+        manager = GPConfigManager("myapp", cfg_folder=cfg_folder)
+
+        assert manager.cfg_folder == cfg_folder.resolve()
+
+    def test_no_collision_multiple_differently_named_subdirs(self, tmp_path: Path):
+        """Multiple subdirs all named differently from project_name are fine."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        for name in ("database", "cache", "llm"):
+            sub = tmp_path / name
+            sub.mkdir()
+            (sub / "x.yaml").write_text("k: v\n")
+
+        manager = GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        assert manager.project_name == "myapp"
