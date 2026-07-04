@@ -4,7 +4,7 @@ site_url: https://linnetcodes.github.io/gpconfig
 repo_url: https://github.com/linnetcodes/gpconfig
 repo_name: LinnetCodes/gpconfig
 edit_uri: edit/mkdocs_pre_publish/docs/
-copyright: Copyright &copy; 2024 HAN Lin
+copyright: Copyright &copy; 2024 Linnet Codes
 
 theme:
   name: material

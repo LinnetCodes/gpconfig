@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    {name = "HAN Lin", email = "lin_han@foxmail.com"},
+    {name = "Linnet Codes", email = "linnet.codes@gmail.com"},
 ]
 keywords = [
     "configuration",
