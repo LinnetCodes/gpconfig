@@ -1,6 +1,8 @@
 """GPConfigManager - Central configuration manager for gpconfig."""
 
+import os
 from pathlib import Path
+from types import MappingProxyType  # noqa: F401  # used in a later task
 from typing import TYPE_CHECKING, Any, List, Optional, Type, TypeVar, Union
 
 import yaml
@@ -157,7 +159,6 @@ class GPConfigManager:
 
         # Rule 2: Environment variable
         env_var_name = f"{project_name.upper()}_CFG_PATH"
-        import os
 
         env_path = os.environ.get(env_var_name)
         if env_path:
@@ -682,7 +683,6 @@ class GPConfigManager:
         """
         from gpconfig.config import GPConfig
         from gpconfig.exceptions import ConfigReadonlyError
-        import os
 
         # Resolve folder path
         if cfg_folder_path is not None:
