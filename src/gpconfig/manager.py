@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from types import MappingProxyType  # noqa: F401  # used in a later task
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, List, Optional, Type, TypeVar, Union
 
 import yaml
@@ -18,7 +18,7 @@ from gpconfig.exceptions import (
     RegistrationError,
 )
 
-T = TypeVar("T")
+T = TypeVar("T", bound="GPConfig")
 
 
 class GPConfigFolder:
@@ -44,6 +44,10 @@ class GPConfigFolder:
     def path(self) -> str:
         """Get the relative path of this folder."""
         return self._relative_path
+
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        return f"GPConfigFolder(relative_path={self._relative_path!r})"
 
     def get_config(
         self, path: str, config_cls: Optional[Type[T]] = None
@@ -137,9 +141,23 @@ class GPConfigManager:
         return self._cfg_folder
 
     @property
-    def global_env(self) -> dict:
-        """Get the global environment configuration."""
-        return self._global_env
+    def global_env(self) -> MappingProxyType:
+        """Get the global environment configuration (read-only view).
+
+        Returns a MappingProxyType view of the internal dict. Reads are fully
+        supported; item assignment/deletion (e.g. `mgr.global_env[k] = v`,
+        `del mgr.global_env[k]`) raise TypeError, and mutating methods like
+        `.pop()`/`.update()` are absent (AttributeError on access). Callers
+        needing a mutable copy should do `dict(mgr.global_env)`.
+        """
+        return MappingProxyType(self._global_env)
+
+    def __repr__(self) -> str:
+        """Concise representation for debugging."""
+        return (
+            f"GPConfigManager(project_name={self._project_name!r}, "
+            f"cfg_folder={self._cfg_folder!r})"
+        )
 
     def _resolve_cfg_folder(
         self, project_name: str, cfg_folder: Optional[Path | str]
