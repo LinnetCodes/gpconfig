@@ -784,7 +784,11 @@ class TestManagerSave:
         assert config.port == 9999
 
     def test_save_with_explicit_path(self, tmp_path: Path):
-        """Save a new config with explicit relative path."""
+        """Save a new config with explicit relative folder path.
+
+        `path` is a folder (file-system style); the file is named after
+        config.name ("explicit_app.yaml").
+        """
         # Create a minimal config folder
         (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
         manager = GPConfigManager("test", cfg_folder=tmp_path)
@@ -795,15 +799,19 @@ class TestManagerSave:
         )
         new_config.name = "explicit_app"
 
-        # Save with explicit path (nested folder)
-        manager.save(new_config, path="custom/folder/explicit_app")
+        # Save with explicit folder path; the file is {name}.yaml inside it.
+        manager.save(new_config, path="custom/folder")
 
-        # Verify file was created at explicit path
+        # Verify file was created inside the folder, named after config.name.
         saved_file = tmp_path / "custom" / "folder" / "explicit_app.yaml"
         assert saved_file.exists()
 
-    def test_save_with_explicit_path_dot_notation(self, tmp_path: Path):
-        """Save a new config with explicit path using dot notation."""
+    def test_save_with_explicit_path_file_system_style(self, tmp_path: Path):
+        """Save a new config with explicit nested folder (file-system style).
+
+        Replaces the old dot-notation variant: `path` is a folder path, and the
+        file is {config.name}.yaml inside it. Dot notation is now rejected.
+        """
         # Create a minimal config folder
         (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
         manager = GPConfigManager("test", cfg_folder=tmp_path)
@@ -818,10 +826,10 @@ class TestManagerSave:
         )
         new_config.name = "custom_db"
 
-        # Save with explicit path using dot notation
-        manager.save(new_config, path="databases.replica.custom_db")
+        # Save with explicit nested folder (file-system style).
+        manager.save(new_config, path="databases/replica")
 
-        # Verify file was created
+        # Verify file was created: folder + {config.name}.yaml.
         saved_file = tmp_path / "databases" / "replica" / "custom_db.yaml"
         assert saved_file.exists()
 

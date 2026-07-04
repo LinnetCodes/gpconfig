@@ -343,6 +343,63 @@ class GPConfigManager:
             parts = parts[1:]
         return parts
 
+    @classmethod
+    def _resolve_save_folder(
+        cls,
+        folder_str: str,
+        from_path_arg: bool,
+        cfg_folder: Path,
+    ) -> Path:
+        """Validate and normalize a save destination folder path.
+
+        Used by save() to resolve both the caller-supplied `path` argument and
+        config.default_cfg_path through identical rules: both are folder paths
+        (file-system style, '/' or '\\\\' separated), and the saved file is always
+        named {config.name}.yaml inside this folder.
+
+        Args:
+            folder_str: The folder path string. May be empty (means cfg_folder
+                        root). Both '/' and '\\\\' are accepted as separators.
+            from_path_arg: True if folder_str came from the caller-supplied `path`
+                           argument; False if from default_cfg_path. Used only for
+                           error-message context.
+            cfg_folder: The base config folder to resolve relative to.
+
+        Returns:
+            The resolved folder Path (cfg_folder itself if folder_str is empty,
+            otherwise cfg_folder / <normalized segments>).
+
+        Raises:
+            IllegalPathError: If folder_str contains '.' (rejects cfg_path style,
+                              '.yaml' suffix, '..' traversal, leading/trailing
+                              dots, hidden dirs), or contains empty segments.
+        """
+        if not folder_str:
+            return cfg_folder
+
+        # Cross-OS: normalise backslashes to forward slashes (Path handles '/' on all platforms)
+        normalized = folder_str.replace("\\", "/").strip("/")
+
+        # Single rule: no '.' allowed. This rejects cfg_path style (a.b), .yaml
+        # suffix, .. traversal, leading/trailing dots, hidden dirs — in one check.
+        if "." in normalized:
+            source = "`path` argument" if from_path_arg else "default_cfg_path"
+            raise IllegalPathError(
+                folder_str,
+                f"save destination {source} must not contain '.'; "
+                f"it is a folder path (file-system style, '/' or '\\\\' separated), "
+                f"not a cfg_path or file name. Got: {folder_str!r}",
+            )
+
+        # Reject empty segments (e.g. "a//b")
+        segments = normalized.split("/")
+        if any(seg == "" for seg in segments):
+            raise IllegalPathError(
+                folder_str, "folder path contains empty segment"
+            )
+
+        return cfg_folder / Path(*segments)
+
     def _assert_within_cfg_folder(self, file_path: Path, path_for_error: str) -> None:
         """Raise IllegalPathError if file_path resolves outside cfg_folder.
 
@@ -766,20 +823,28 @@ class GPConfigManager:
     def save(self, config: "GPConfig", path: Optional[str] = None) -> None:
         """Save a GPConfig instance to a config file.
 
-        This method determines the file path using:
-        1. If `path` is provided: use it as relative path from cfg_folder
-        2. Otherwise: use config's default_cfg_path + name
+        The destination file path is assembled as:
+            cfg_folder / <folder> / {config.name}.yaml
 
-        The config's cfg_file_path will be set before saving.
+        where <folder> is the `path` argument if provided, otherwise
+        config.default_cfg_path. Both are **folder paths** (file-system style,
+        '/' or '\\\\' separated), NOT file paths — the file is always named after
+        config.name. Cross-OS: both '/' and '\\\\' are accepted as separators
+        (normalised internally); '/' is recommended for portability.
 
         Args:
             config: The GPConfig instance to save.
-            path: Optional relative path from cfg_folder (e.g., "cache/redis" or "database").
-                  If not provided, uses config.default_cfg_path + config.name.
+            path: Optional folder path relative to cfg_folder (file-system style,
+                  e.g. "cache/redis" or "database"). Must NOT contain '.' (this
+                  rejects cfg_path style, '.yaml' suffixes, '..' traversal). The
+                  folder need not exist; it is created on save. If None, uses
+                  config.default_cfg_path.
 
         Raises:
-            ValueError: If config.name is empty or path cannot be determined.
             ConfigReadonlyError: If config.readonly is True.
+            ValueError: If config.name is empty.
+            IllegalPathError: If path (or default_cfg_path) contains '.', or has
+                              empty segments.
         """
         from gpconfig.config import GPConfig
         from gpconfig.exceptions import ConfigReadonlyError
@@ -795,37 +860,21 @@ class GPConfigManager:
                 "Config must have a non-empty 'name' attribute to be saved"
             )
 
-        # Determine the file path
-        if path is not None:
-            # Use provided relative path
-            # Normalize path: remove leading slashes, convert dots to slashes
-            relative_path = path.lstrip("/\\").replace(".", "/")
-            file_path = self._cfg_folder / f"{relative_path}.yaml"
-        else:
-            # Use default_cfg_path + name
-            default_path = config.default_cfg_path or ""
-            # Normalize default_path: remove leading/trailing slashes
-            default_path = default_path.strip("/\\")
-
-            if default_path:
-                file_path = self._cfg_folder / default_path / f"{config.name}.yaml"
-            else:
-                file_path = self._cfg_folder / f"{config.name}.yaml"
+        # Unified path resolution: `path` (if given) and `default_cfg_path` are
+        # semantically identical — both are folder paths (file-system style).
+        folder_str = path if path is not None else (config.default_cfg_path or "")
+        folder = self._resolve_save_folder(folder_str, path is not None, self._cfg_folder)
+        file_path = folder / f"{config.name}.yaml"
 
         # Defence-in-depth: ensure the resolved file stays inside cfg_folder
-        # (guards against path / default_cfg_path containing '..' escapes).
         self._assert_within_cfg_folder(file_path, path if path is not None else config.name)
 
-        # Create parent directories if needed
+        # Create parent directories if needed (folder may not exist yet)
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Set the config's file path
         config.cfg_file_path = file_path
-
-        # Call the config's save method
         config.save()
 
-        # Update cache with the new config
         cache_key = str(file_path)
         self._config_cache[cache_key] = config
 
@@ -897,14 +946,13 @@ class GPConfigManager:
             if config.readonly:
                 raise ConfigReadonlyError(config.name)
 
-            # Determine file path from default_cfg_path + name
-            default_path = config.default_cfg_path or ""
-            default_path = default_path.strip("/\\")
-
-            if default_path:
-                file_path = folder_path / default_path / f"{config.name}.yaml"
-            else:
-                file_path = folder_path / f"{config.name}.yaml"
+            # Determine file path from default_cfg_path + name. default_cfg_path
+            # is resolved as a folder (file-system style) via _resolve_save_folder
+            # — the same rules as save(), so the '.' validation applies here too.
+            folder = cls._resolve_save_folder(
+                config.default_cfg_path or "", from_path_arg=False, cfg_folder=folder_path
+            )
+            file_path = folder / f"{config.name}.yaml"
 
             # Create subdirectories if needed
             file_path.parent.mkdir(parents=True, exist_ok=True)
