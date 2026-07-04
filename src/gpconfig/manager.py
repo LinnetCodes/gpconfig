@@ -218,12 +218,42 @@ class GPConfigManager:
             Returns empty dict if file is empty or contains only comments.
         """
         global_env_path = self._cfg_folder / "global_env.yaml"
+        return self._load_yaml_dict(global_env_path, str(global_env_path))
 
-        with open(global_env_path, "r", encoding="utf-8") as f:
-            content = yaml.safe_load(f)
+    def _load_yaml_dict(self, file_path: Path, path_for_error: str) -> dict:
+        """Load a YAML file and validate it returns a dict.
 
-        # yaml.safe_load returns None for empty files or files with only comments
-        return content if content is not None else {}
+        Args:
+            file_path: Path to the YAML file to load.
+            path_for_error: The dotted config path or str(file_path) to embed
+                            in raised exceptions (for caller context).
+
+        Returns:
+            The loaded dict (empty dict if the YAML is empty/comments-only).
+
+        Raises:
+            ConfigNotFoundError: If the file does not exist or cannot be opened
+                                 (e.g. deleted between exists() check and open).
+            ConfigValidationError: If the top-level YAML value is not a dict
+                                   (e.g. a list or scalar).
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                raw_data = yaml.safe_load(f)
+        except FileNotFoundError as e:
+            raise ConfigNotFoundError(
+                path_for_error, f"File vanished during read: {file_path}"
+            ) from e
+        if raw_data is None:
+            return {}
+        if not isinstance(raw_data, dict):
+            raise ConfigValidationError(
+                path_for_error,
+                TypeError(
+                    f"Top-level YAML must be a mapping, got {type(raw_data).__name__}"
+                ),
+            )
+        return raw_data
 
     def _parse_path(self, path: str) -> tuple[Path, Optional[str]]:
         """
@@ -383,8 +413,7 @@ class GPConfigManager:
         # Load or retrieve cached config
         if cache_key not in self._config_cache:
             # Load raw data first
-            with open(file_path, "r", encoding="utf-8") as f:
-                raw_data = yaml.safe_load(f) or {}
+            raw_data = self._load_yaml_dict(file_path, path)
 
             if key:
                 # Key access - just return the value
@@ -433,8 +462,7 @@ class GPConfigManager:
             Configured GPConfig instance.
         """
         if data is None:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
+            data = self._load_yaml_dict(file_path, str(file_path))
 
         config = config_cls(**data)
         config.name = file_path.stem
