@@ -59,10 +59,133 @@ class TestGPConfigClassVars:
 
     def test_subclass_can_override_class_vars(self):
         class CustomConfig(GPConfig):
-            default_cfg_path = "custom/default.yaml"
+            default_cfg_path = "custom/default"  # legal folder-only path
             value: str
 
-        assert CustomConfig.default_cfg_path == "custom/default.yaml"
+        assert CustomConfig.default_cfg_path == "custom/default"
+
+
+class TestDefaultCfgPathValidation:
+    """GPConfig.__init_subclass__ validates default_cfg_path at class-definition time.
+
+    This is the fail-early counterpart to the runtime check in
+    GPConfigManager._resolve_save_folder. The class-definition check catches
+    typos (e.g. 'cache/redis.yaml', 'llm.openai') at import time rather than on
+    the first save() call.
+    """
+
+    # ------------------------------------------------------------------
+    # Valid values — must NOT raise at class definition
+    # ------------------------------------------------------------------
+
+    def test_explicit_none_allowed(self):
+        """default_cfg_path = None (explicit) — OK."""
+
+        class NoneConfig(GPConfig):
+            default_cfg_path = None
+            value: str = ""
+
+        assert NoneConfig.default_cfg_path is None
+
+    def test_single_segment_allowed(self):
+        """default_cfg_path = 'cache' (single segment) — OK."""
+
+        class CacheConfig(GPConfig):
+            default_cfg_path = "cache"
+            value: str = ""
+
+        assert CacheConfig.default_cfg_path == "cache"
+
+    def test_slash_separated_allowed(self):
+        """default_cfg_path = 'cache/redis' (file_path style) — OK."""
+
+        class SlashConfig(GPConfig):
+            default_cfg_path = "cache/redis"
+            value: str = ""
+
+        assert SlashConfig.default_cfg_path == "cache/redis"
+
+    def test_backslash_separated_allowed(self):
+        """default_cfg_path = 'cache\\\\redis' (backslash) — OK.
+
+        The class-def check only rejects '.'; runtime normalises backslashes.
+        """
+
+        class BackslashConfig(GPConfig):
+            default_cfg_path = "cache\\redis"
+            value: str = ""
+
+        assert BackslashConfig.default_cfg_path == "cache\\redis"
+
+    def test_not_overriding_inherits_none(self):
+        """A subclass that does NOT override default_cfg_path inherits None.
+
+        No validation should be triggered for the inherited default.
+        """
+
+        class InheritsConfig(GPConfig):
+            value: str = ""
+
+        assert InheritsConfig.default_cfg_path is None
+
+    def test_empty_string_allowed(self):
+        """default_cfg_path = '' (empty string) — OK.
+
+        Empty string is allowed at runtime (_resolve_save_folder treats it as
+        cfg_folder root) and contains no '.', so class-def must also allow it.
+        """
+
+        class EmptyConfig(GPConfig):
+            default_cfg_path = ""
+            value: str = ""
+
+        assert EmptyConfig.default_cfg_path == ""
+
+    # ------------------------------------------------------------------
+    # Invalid values — must raise at class definition
+    # ------------------------------------------------------------------
+
+    def test_cfg_path_style_rejected(self):
+        """default_cfg_path = 'llm.openai' -> ValueError (cfg_path style)."""
+        with pytest.raises(ValueError, match=r"must not contain '\.'"):
+
+            class BadConfig(GPConfig):
+                default_cfg_path = "llm.openai"
+
+    def test_yaml_suffix_rejected(self):
+        """default_cfg_path = 'cache/redis.yaml' -> ValueError (.yaml suffix)."""
+        with pytest.raises(ValueError, match=r"must not contain '\.'"):
+
+            class BadConfig(GPConfig):
+                default_cfg_path = "cache/redis.yaml"
+
+    def test_dotdot_traversal_rejected(self):
+        """default_cfg_path = '../escape' -> ValueError (.. traversal)."""
+        with pytest.raises(ValueError, match=r"must not contain '\.'"):
+
+            class BadConfig(GPConfig):
+                default_cfg_path = "../escape"
+
+    def test_leading_dot_rejected(self):
+        """default_cfg_path = '.hidden' -> ValueError (leading dot)."""
+        with pytest.raises(ValueError, match=r"must not contain '\.'"):
+
+            class BadConfig(GPConfig):
+                default_cfg_path = ".hidden"
+
+    def test_non_string_rejected(self):
+        """default_cfg_path = 123 (non-string, non-None) -> TypeError."""
+        with pytest.raises(TypeError, match="must be a string or None"):
+
+            class BadConfig(GPConfig):
+                default_cfg_path = 123  # type: ignore[assignment]
+
+    def test_error_message_mentions_class_name(self):
+        """The ValueError message names the offending subclass."""
+        with pytest.raises(ValueError, match="BadNamedConfig"):
+
+            class BadNamedConfig(GPConfig):
+                default_cfg_path = "llm.openai"
 
 
 class TestGPConfigSave:

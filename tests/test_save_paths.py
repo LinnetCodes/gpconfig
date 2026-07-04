@@ -207,16 +207,23 @@ class TestSaveDotRejection:
         assert "empty segment" in str(exc_info.value)
 
     def test_default_cfg_path_dot_rejected(self, manager: GPConfigManager):
-        """default_cfg_path='llm.openai' + save(c) -> IllegalPathError.
+        """Runtime check rejects default_cfg_path mutated to '.' after class def.
 
-        default_cfg_path is validated through the same rules as `path`.
+        __init_subclass__ now catches '.' at class-definition time, so to prove
+        the _resolve_save_folder runtime check is still active as
+        defence-in-depth (against dynamic mutation like
+        ``cls.default_cfg_path = "bad"``), we define a valid subclass and then
+        mutate default_cfg_path to a '.'-containing value before save().
         """
-        class _BadDefault(GPConfig):
-            cfg_class_name: ClassVar[str] = "_BadDefault"
-            default_cfg_path: ClassVar[Optional[str]] = "llm.openai"
+        class _MutatedDefault(GPConfig):
+            cfg_class_name: ClassVar[str] = "_MutatedDefault"
+            default_cfg_path: ClassVar[Optional[str]] = "cache"
+
+        # Bypass __init_subclass__ by mutating after class definition.
+        _MutatedDefault.default_cfg_path = "llm.openai"
 
         with pytest.raises(IllegalPathError):
-            manager.save(_BadDefault(name="x"))
+            manager.save(_MutatedDefault(name="x"))
 
 
 # ---------------------------------------------------------------------------
@@ -277,12 +284,21 @@ class TestMakeNewFolderSync:
     _resolve_save_folder, so the '.' validation applies here too."""
 
     def test_default_cfg_path_dot_rejected(self, tmp_path: Path):
-        """make_new_project_config_folder rejects default_cfg_path with '.'."""
-        class _BadDefault(GPConfig):
-            cfg_class_name: ClassVar[str] = "_BadDefaultMNPF"
-            default_cfg_path: ClassVar[Optional[str]] = "llm.openai"
+        """make_new_project_config_folder rejects '.' via the runtime check.
 
-        c = _BadDefault(name="x")
+        __init_subclass__ now rejects '.' at class-definition time, so we
+        mutate default_cfg_path after definition to exercise the
+        _resolve_save_folder runtime check (defence-in-depth against dynamic
+        mutation).
+        """
+        class _MutatedDefault(GPConfig):
+            cfg_class_name: ClassVar[str] = "_MutatedDefaultMNPF"
+            default_cfg_path: ClassVar[Optional[str]] = "cache"
+
+        # Bypass __init_subclass__ by mutating after class definition.
+        _MutatedDefault.default_cfg_path = "llm.openai"
+
+        c = _MutatedDefault(name="x")
         with pytest.raises(IllegalPathError):
             GPConfigManager.make_new_project_config_folder(
                 project_name="myapp",
