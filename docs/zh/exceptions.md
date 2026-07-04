@@ -178,7 +178,7 @@ for bad in ["", ".", "a..b", ".hidden", "global_env.", "a/b"]:
 
 # save() 拒绝包含 '.' 的路径（cfg_path 风格、'.yaml' 后缀、'..' 穿越）
 try:
-    manager.save(config, "backups/database_backup")  # 包含 '.'
+    manager.save(config, "backups/database.yaml")  # 包含 '.'（.yaml 后缀）
 except IllegalPathError as e:
     print(f"保存被拒绝: {e}")
 ```
@@ -248,7 +248,7 @@ class RegistrationError(GPConfigError):
 
 ### 触发场景
 
-- 注册重复的 `cfg_class_name`
+- 用**不同的类**注册一个已被占用的 `cfg_class_name`（重新注册同一个类是幂等的，会静默成功）
 - 配置类未注册但调用了 `get_object()`
 - 配置类没有关联的 `configured_class`
 
@@ -262,15 +262,19 @@ class MyConfig(GPConfig):
     cfg_class_name: ClassVar[str] = "MyConfig"
     value: str
 
+class ConflictConfig(GPConfig):
+    cfg_class_name: ClassVar[str] = "MyConfig"  # 相同的 cfg_class_name，不同的类
+    other: str
+
 # 第一次注册 - 成功
 GPConfigManager.register_config_class(MyConfig)
 
-# 第二次注册 - 失败
+# 用不同的类在相同名字下再次注册 - 失败
 try:
-    GPConfigManager.register_config_class(MyConfig)
+    GPConfigManager.register_config_class(ConflictConfig)
 except RegistrationError as e:
     print(f"注册错误: {e}")
-    # 输出: Config class name 'MyConfig' is already registered
+    # 输出: Config class name 'MyConfig' is already registered with a different class
 ```
 
 ## ConfigValidationError

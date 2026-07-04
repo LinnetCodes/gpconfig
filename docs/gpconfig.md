@@ -97,13 +97,13 @@ class CacheConfig(GPConfig):
 - The default `None` means the config is saved at the `cfg_folder` root (i.e. `cfg_folder/{config.name}.yaml`).
 
 ```python
-class BadConfig(GPConfig):
-    cfg_class_name: ClassVar[str] = "BadConfig"
-    default_cfg_path: ClassVar[str] = "llm.openai"  # ValueError at class definition!
+# class BadConfig(GPConfig):                                   # ValueError at class definition!
+#     cfg_class_name: ClassVar[str] = "BadConfig"
+#     default_cfg_path: ClassVar[str] = "llm.openai"           # '.' rejected (cfg_path style)
 
-class AlsoBad(GPConfig):
-    cfg_class_name: ClassVar[str] = "AlsoBad"
-    default_cfg_path: ClassVar[str] = "cache.yaml"  # ValueError: contains '.'
+# class AlsoBad(GPConfig):                                     # ValueError at class definition!
+#     cfg_class_name: ClassVar[str] = "AlsoBad"
+#     default_cfg_path: ClassVar[str] = "cache.yaml"           # '.' rejected (.yaml suffix)
 ```
 
 > **Note:** Only a subclass's own override is inspected (not the inherited `None` default), so subclasses that don't set `default_cfg_path` are unaffected. The runtime check in `GPConfigManager.save()` remains as defence-in-depth against dynamic mutation (e.g. `cls.default_cfg_path = "bad"`) after class definition.
@@ -177,9 +177,9 @@ config.save()
 
 **Notes:**
 
-- `save()` excludes `name`, `cfg_file_path`, and `readonly` fields
-- `cfg_class_name` is included in the saved YAML
-- `configured_class_name` is included if set
+- `save()` excludes all metadata fields (`name`, `cfg_file_path`, `readonly`, `configured_class_name`) from the dump
+- `cfg_class_name` (a ClassVar) is always included in the saved YAML
+- `configured_class_name` is added back only when set (None → omitted entirely)
 - The config must be writable (`readonly=False`)
 
 ## Type Validation

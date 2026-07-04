@@ -97,13 +97,13 @@ class CacheConfig(GPConfig):
 - 默认值 `None` 表示配置保存到 `cfg_folder` 根目录（即 `cfg_folder/{config.name}.yaml`）。
 
 ```python
-class BadConfig(GPConfig):
-    cfg_class_name: ClassVar[str] = "BadConfig"
-    default_cfg_path: ClassVar[str] = "llm.openai"  # 在类定义处抛出 ValueError！
+# class BadConfig(GPConfig):                                   # 在类定义处抛出 ValueError！
+#     cfg_class_name: ClassVar[str] = "BadConfig"
+#     default_cfg_path: ClassVar[str] = "llm.openai"           # '.' 被拒绝（cfg_path 风格）
 
-class AlsoBad(GPConfig):
-    cfg_class_name: ClassVar[str] = "AlsoBad"
-    default_cfg_path: ClassVar[str] = "cache.yaml"  # ValueError: 包含 '.'
+# class AlsoBad(GPConfig):                                     # 在类定义处抛出 ValueError！
+#     cfg_class_name: ClassVar[str] = "AlsoBad"
+#     default_cfg_path: ClassVar[str] = "cache.yaml"           # '.' 被拒绝（.yaml 后缀）
 ```
 
 > **注意：** 只检查子类自身的覆盖（不检查继承来的 `None` 默认值），因此未设置 `default_cfg_path` 的子类不受影响。`GPConfigManager.save()` 中的运行时检查作为纵深防御保留，用于捕获类定义之后的动态修改（例如 `cls.default_cfg_path = "bad"`）。
@@ -177,9 +177,9 @@ config.save()
 
 **注意事项：**
 
-- `save()` 会排除 `name`、`cfg_file_path` 和 `readonly` 字段
-- `cfg_class_name` 会被包含在保存的 YAML 中
-- `configured_class_name` 如果设置了，也会被包含在保存的 YAML 中
+- `save()` 会排除所有元数据字段（`name`、`cfg_file_path`、`readonly`、`configured_class_name`）
+- `cfg_class_name`（ClassVar）始终会被包含在保存的 YAML 中
+- `configured_class_name` 仅在已设置时才会被加回（None → 完全不写入）
 - 配置必须是可写的（`readonly=False`）
 
 ## 类型验证

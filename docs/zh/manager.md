@@ -445,7 +445,7 @@ config.port = 5433
 manager.save(config)
 
 # 保存到新文件夹（文件系统风格；'.' 会被拒绝）
-manager.save(config, "backups/database_backup")  # IllegalPathError: 包含 '.'
+# manager.save(config, "backups/database.yaml")  # IllegalPathError: 文件夹路径不能包含 '.'
 manager.save(config, "backups/db_backups")       # OK -> backups/db_backups/{config.name}.yaml
 
 # 保存新配置

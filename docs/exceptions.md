@@ -178,7 +178,7 @@ for bad in ["", ".", "a..b", ".hidden", "global_env.", "a/b"]:
 
 # save() rejects path containing '.' (cfg_path style, '.yaml' suffix, '..' traversal)
 try:
-    manager.save(config, "backups/database_backup")  # contains '.'
+    manager.save(config, "backups/database.yaml")  # contains '.' (.yaml suffix)
 except IllegalPathError as e:
     print(f"Save rejected: {e}")
 ```
@@ -248,7 +248,7 @@ class RegistrationError(GPConfigError):
 
 ### Trigger Conditions
 
-- Registering duplicate `cfg_class_name`
+- Registering a **different** class under an already-registered `cfg_class_name` (re-registering the same class is idempotent and succeeds silently)
 - Config class not registered but `get_object()` was called
 - Config class has no associated `configured_class`
 
@@ -262,15 +262,19 @@ class MyConfig(GPConfig):
     cfg_class_name: ClassVar[str] = "MyConfig"
     value: str
 
+class ConflictConfig(GPConfig):
+    cfg_class_name: ClassVar[str] = "MyConfig"  # same cfg_class_name, different class
+    other: str
+
 # First registration - success
 GPConfigManager.register_config_class(MyConfig)
 
-# Second registration - failure
+# Second registration with a DIFFERENT class under the same name - failure
 try:
-    GPConfigManager.register_config_class(MyConfig)
+    GPConfigManager.register_config_class(ConflictConfig)
 except RegistrationError as e:
     print(f"Registration error: {e}")
-    # Output: Config class name 'MyConfig' is already registered
+    # Output: Config class name 'MyConfig' is already registered with a different class
 ```
 
 ## ConfigValidationError
