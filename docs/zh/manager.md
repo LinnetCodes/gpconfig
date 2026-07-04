@@ -97,7 +97,7 @@ print(manager.cfg_folder)  # Path("/path/to/configs")
 
 ### global_env
 
-获取全局环境配置字典。
+以**只读**的 `MappingProxyType` 视图（而非可变 `dict`）获取全局环境配置。
 
 ```python
 # global_env.yaml 内容:
@@ -106,6 +106,24 @@ print(manager.cfg_folder)  # Path("/path/to/configs")
 
 print(manager.global_env["version"])  # "1.0.0"
 print(manager.global_env["debug"])    # True
+```
+
+**只读 —— 不允许修改。** 返回的视图用于保护 manager 的内部状态，并与缓存的快照模型保持一致（参见[配置缓存与失效](#配置缓存与失效)）。任何修改尝试都会抛出异常：
+
+```python
+manager.global_env["new_key"] = "value"  # TypeError: 'mappingproxy' object does not support item assignment
+del manager.global_env["debug"]          # TypeError: 'mappingproxy' object does not support item deletion
+manager.global_env.pop("debug")          # AttributeError: 'mappingproxy' object has no attribute 'pop'
+manager.global_env.update({"x": 1})      # AttributeError: 'mappingproxy' object has no attribute 'update'
+```
+
+项操作（`[k] = v`、`del`）抛出 `TypeError`；缺失的可变方法（`.pop()`、`.update()`）抛出 `AttributeError`。
+
+如需可变副本，请将其物化为普通 dict：
+
+```python
+env = dict(manager.global_env)  # 一个可以自由修改的普通 dict
+env["new_key"] = "value"
 ```
 
 ## 类方法
@@ -297,6 +315,10 @@ def get_config(
 - 如果路径指向特定键，返回该键的值
 - 否则返回原始字典
 
+**抛出：**
+- 当路径格式错误或逃逸出 `cfg_folder` 时抛出 `IllegalPathError`。
+- 当格式正确的路径无法解析到已存在的文件或键时抛出 `ConfigNotFoundError`。
+
 **示例：**
 
 ```python
@@ -406,7 +428,11 @@ def save(self, config: "GPConfig", path: Optional[str] = None) -> None:
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `config` | `GPConfig` | 要保存的配置实例 |
-| `path` | `str \| None` | 可选的相对路径 |
+| `path` | `str \| None` | 可选的相对文件夹路径（文件系统风格，以 `/` 或 `\` 分隔）。文件始终命名为 `{config.name}.yaml` 并位于该文件夹内。不能包含 `.`。 |
+
+**抛出：**
+- 当路径格式错误或逃逸出 `cfg_folder` 时抛出 `IllegalPathError`（例如包含 `.`，包括 cfg_path 风格、`.yaml` 后缀或 `..` 穿越）。
+- 当配置设置了 `readonly=True` 时抛出 `ConfigReadonlyError`。
 
 **示例：**
 
@@ -418,8 +444,9 @@ config.port = 5433
 # 保存（使用原有路径）
 manager.save(config)
 
-# 保存到新路径
-manager.save(config, "backups/database_backup")
+# 保存到新文件夹（文件系统风格；'.' 会被拒绝）
+manager.save(config, "backups/database_backup")  # IllegalPathError: 包含 '.'
+manager.save(config, "backups/db_backups")       # OK -> backups/db_backups/{config.name}.yaml
 
 # 保存新配置
 new_config = DatabaseConfig(

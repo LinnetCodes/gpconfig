@@ -100,7 +100,7 @@ print(manager.cfg_folder)  # Path("/path/to/configs")
 
 ### global_env
 
-Get the global environment config dictionary.
+Get the global environment config as a **read-only** `MappingProxyType` view (not a mutable `dict`).
 
 ```python
 # global_env.yaml content:
@@ -109,6 +109,24 @@ Get the global environment config dictionary.
 
 print(manager.global_env["version"])  # "1.0.0"
 print(manager.global_env["debug"])    # True
+```
+
+**Read-only — mutation is rejected.** The returned view protects the manager's internal state and aligns with the cache's snapshot model (see [Config Caching and Invalidation](#config-caching-and-invalidation)). Any attempt to mutate it raises:
+
+```python
+manager.global_env["new_key"] = "value"  # TypeError: 'mappingproxy' object does not support item assignment
+del manager.global_env["debug"]          # TypeError: 'mappingproxy' object does not support item deletion
+manager.global_env.pop("debug")          # AttributeError: 'mappingproxy' object has no attribute 'pop'
+manager.global_env.update({"x": 1})      # AttributeError: 'mappingproxy' object has no attribute 'update'
+```
+
+Item operations (`[k] = v`, `del`) raise `TypeError`; absent mutating methods (`.pop()`, `.update()`) raise `AttributeError`.
+
+For a mutable copy, materialise it into a plain dict:
+
+```python
+env = dict(manager.global_env)  # a plain dict you can freely modify
+env["new_key"] = "value"
 ```
 
 ## Class Methods
@@ -300,6 +318,10 @@ def get_config(
 - If path points to a specific key, returns that key's value
 - Otherwise returns the raw dictionary
 
+**Raises:**
+- `IllegalPathError` if the path is malformed or escapes `cfg_folder`.
+- `ConfigNotFoundError` if a well-formed path does not resolve to an existing file or key.
+
 **Examples:**
 
 ```python
@@ -409,7 +431,11 @@ def save(self, config: "GPConfig", path: Optional[str] = None) -> None:
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `config` | `GPConfig` | Config instance to save |
-| `path` | `str \| None` | Optional relative path |
+| `path` | `str \| None` | Optional relative folder path (file-system style, `/` or `\` separated). The file is always named `{config.name}.yaml` inside this folder. Must not contain `.`. |
+
+**Raises:**
+- `IllegalPathError` if the path is malformed or escapes `cfg_folder` (e.g. contains `.`, including cfg_path style, `.yaml` suffix, or `..` traversal).
+- `ConfigReadonlyError` if the config has `readonly=True`.
 
 **Examples:**
 
@@ -421,8 +447,9 @@ config.port = 5433
 # Save (using original path)
 manager.save(config)
 
-# Save to new path
-manager.save(config, "backups/database_backup")
+# Save to a new folder (file-system style; '.' is rejected)
+manager.save(config, "backups/database_backup")  # IllegalPathError: contains '.'
+manager.save(config, "backups/db_backups")       # OK -> backups/db_backups/{config.name}.yaml
 
 # Save new config
 new_config = DatabaseConfig(

@@ -80,7 +80,7 @@ db = manager.get_object("database")  # 自动使用 Database 类
 
 ### default_cfg_path
 
-保存配置时的默认相对路径。
+保存配置时的默认相对**文件夹路径**。它是一个文件夹路径（文件系统风格，以 `/` 或 `\` 分隔），**不是**文件路径 —— 保存的文件始终命名为 `{config.name}.yaml` 并位于该文件夹内。
 
 ```python
 class CacheConfig(GPConfig):
@@ -88,6 +88,25 @@ class CacheConfig(GPConfig):
     default_cfg_path: ClassVar[str] = "cache"  # 保存到 cache/{name}.yaml
     host: str = "localhost"
 ```
+
+**校验契约（fail-early）：** `default_cfg_path` 在子类定义时通过 `__init_subclass__` 校验，因此格式错误的值会在 `class MyConfig(GPConfig):` 语句处被捕获，而不是在第一次 `save()` 调用时：
+
+- 必须是 `str` 或 `None`。非字符串、非 `None` 的值会抛出 `TypeError`。
+- **不能**包含 `.` —— 这一条规则同时拒绝 cfg_path 风格（`llm.openai`）、文件名后缀（`cache.yaml`）和 `..` 穿越。包含 `.` 的值会抛出 `ValueError`。
+- 跨操作系统：`\` 和 `/` 都可作为分隔符。
+- 默认值 `None` 表示配置保存到 `cfg_folder` 根目录（即 `cfg_folder/{config.name}.yaml`）。
+
+```python
+class BadConfig(GPConfig):
+    cfg_class_name: ClassVar[str] = "BadConfig"
+    default_cfg_path: ClassVar[str] = "llm.openai"  # 在类定义处抛出 ValueError！
+
+class AlsoBad(GPConfig):
+    cfg_class_name: ClassVar[str] = "AlsoBad"
+    default_cfg_path: ClassVar[str] = "cache.yaml"  # ValueError: 包含 '.'
+```
+
+> **注意：** 只检查子类自身的覆盖（不检查继承来的 `None` 默认值），因此未设置 `default_cfg_path` 的子类不受影响。`GPConfigManager.save()` 中的运行时检查作为纵深防御保留，用于捕获类定义之后的动态修改（例如 `cls.default_cfg_path = "bad"`）。
 
 ## 实例字段
 

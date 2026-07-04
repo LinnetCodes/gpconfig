@@ -273,6 +273,25 @@ class TestSaveContainmentBackstop:
         with pytest.raises(_IPE):
             manager._assert_within_cfg_folder(outside, "outside")
 
+    def test_nested_save_passes_containment(self, manager: GPConfigManager):
+        """A legit nested path passes the containment check and writes inside cfg_folder.
+
+        Complements test_escape_rejected_by_containment: the `.` rule makes it
+        impossible for a `path` argument to reach the containment guard via
+        save() with an escaping value (absolute paths get neutralised by
+        strip('/') + Path(*segments) joining under cfg_folder). This test proves
+        the guard is wired into save() by confirming a normal nested write
+        succeeds AND the resulting cfg_file_path resolves inside cfg_folder —
+        i.e. the containment check does not false-positive on legit nested writes.
+        """
+        c = _make_config()
+        manager.save(c, "sub/deep")
+
+        expected = manager._cfg_folder / "sub" / "deep" / f"{c.name}.yaml"
+        assert expected.is_file()
+        # Proves the containment check ran and accepted an in-bounds path.
+        assert manager._cfg_folder.resolve() in c.cfg_file_path.resolve().parents
+
 
 # ---------------------------------------------------------------------------
 # make_new_project_config_folder sync

@@ -9,6 +9,7 @@ from gpconfig import (
     GPConfigError,
     ConfigFolderError,
     ConfigNotFoundError,
+    IllegalPathError,
     ConfigReadonlyError,
     RegistrationError,
     ConfigValidationError,
@@ -21,6 +22,7 @@ from gpconfig import (
 GPConfigError (base class)
 ├── ConfigFolderError
 ├── ConfigNotFoundError
+├── IllegalPathError
 ├── ConfigReadonlyError
 ├── RegistrationError
 └── ConfigValidationError
@@ -123,6 +125,62 @@ try:
     value = manager.get_config("database.nonexistent_key")
 except ConfigNotFoundError as e:
     print(f"Key not found: {e.path}")
+```
+
+## IllegalPathError
+
+Raised when a config path is malformed or escapes the `cfg_folder` (defence-in-depth containment).
+
+```python
+class IllegalPathError(GPConfigError):
+    """Raised when a config path is malformed or escapes the cfg_folder."""
+
+    def __init__(self, path: str, message: str = ""):
+        self.path = path
+        super().__init__(message or f"Illegal config path: {path}")
+```
+
+### Trigger Conditions
+
+A path is considered malformed and raises `IllegalPathError` when it is:
+
+- **Empty** — e.g. `""` (was previously a tolerated way to refer to the root folder).
+- **Dots-only** — e.g. `"."`, `".."`.
+- **Contains consecutive dots** — e.g. `"a..b"`.
+- **Has a leading or trailing dot** — e.g. `".x"`, `"x."` (a trailing dot previously returned the entire `global_env` dict by accident).
+- **Contains a literal `/` or `\` in cfg_path style** — cfg_path uses dot-notation; a raw separator signals a malformed path.
+
+Additionally, even a syntactically valid path raises `IllegalPathError` if it **resolves outside the `cfg_folder`**. This containment check is a defence-in-depth guarantee that no path can escape the managed folder.
+
+### Attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `path` | `str` | The offending path string that was rejected |
+
+### Raised By
+
+`IllegalPathError` is raised by `GPConfigManager.get_config()`, `get_object()`, `list_configs()`, and `save()` whenever they encounter a malformed or escaping path.
+
+### Examples
+
+```python
+from gpconfig import GPConfigManager, IllegalPathError
+
+manager = GPConfigManager("myapp")
+
+# Malformed paths
+for bad in ["", ".", "a..b", ".hidden", "global_env.", "a/b"]:
+    try:
+        manager.get_config(bad)
+    except IllegalPathError as e:
+        print(f"Rejected {bad!r}: {e.path} -> {e}")
+
+# save() rejects path containing '.' (cfg_path style, '.yaml' suffix, '..' traversal)
+try:
+    manager.save(config, "backups/database_backup")  # contains '.'
+except IllegalPathError as e:
+    print(f"Save rejected: {e}")
 ```
 
 ## ConfigReadonlyError

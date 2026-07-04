@@ -140,8 +140,8 @@ port: 5432
 db_config.port = 5433
 db_config.save()
 
-# 保存到新位置
-manager.save(db_config, "backups/database_backup")
+# 保存到新文件夹（文件系统风格；'.' 会被拒绝）
+manager.save(db_config, "backups/db_backups")  # -> backups/db_backups/{db_config.name}.yaml
 ```
 
 ## 核心组件
@@ -159,6 +159,7 @@ manager.save(db_config, "backups/database_backup")
 | `GPConfigError` | 所有 gpconfig 异常的基类 |
 | `ConfigFolderError` | 配置文件夹未找到或无效 |
 | `ConfigNotFoundError` | 请求的配置路径不存在 |
+| `IllegalPathError` | 配置路径格式错误或逃逸出 `cfg_folder` |
 | `ConfigReadonlyError` | 尝试修改只读配置 |
 | `RegistrationError` | 类注册问题 |
 | `ConfigValidationError` | 配置文件验证失败 |

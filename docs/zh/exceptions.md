@@ -9,6 +9,7 @@ from gpconfig import (
     GPConfigError,
     ConfigFolderError,
     ConfigNotFoundError,
+    IllegalPathError,
     ConfigReadonlyError,
     RegistrationError,
     ConfigValidationError,
@@ -21,6 +22,7 @@ from gpconfig import (
 GPConfigError (基类)
 ├── ConfigFolderError
 ├── ConfigNotFoundError
+├── IllegalPathError
 ├── ConfigReadonlyError
 ├── RegistrationError
 └── ConfigValidationError
@@ -123,6 +125,62 @@ try:
     value = manager.get_config("database.nonexistent_key")
 except ConfigNotFoundError as e:
     print(f"未找到键: {e.path}")
+```
+
+## IllegalPathError
+
+配置路径格式错误或逃逸出 `cfg_folder`（纵深防御 containment）时抛出。
+
+```python
+class IllegalPathError(GPConfigError):
+    """Raised when a config path is malformed or escapes the cfg_folder."""
+
+    def __init__(self, path: str, message: str = ""):
+        self.path = path
+        super().__init__(message or f"Illegal config path: {path}")
+```
+
+### 触发场景
+
+当路径满足以下任一条件时被视为格式错误并抛出 `IllegalPathError`：
+
+- **为空** —— 例如 `""`（以前被当作引用根文件夹的可容忍方式）。
+- **仅由点组成** —— 例如 `"."`、`".."`。
+- **包含连续的点** —— 例如 `"a..b"`。
+- **以点开头或结尾** —— 例如 `".x"`、`"x."`（以点结尾以前会因 bug 而返回整个 `global_env` 字典）。
+- **在 cfg_path 风格中包含字面量 `/` 或 `\`** —— cfg_path 使用点号表示法；出现原始分隔符即表示路径格式错误。
+
+此外，即使语法上合法，如果路径**解析后位于 `cfg_folder` 之外**，也会抛出 `IllegalPathError`。该 containment 检查是一项纵深防御保证，确保没有任何路径能逃逸出受管文件夹。
+
+### 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `path` | `str` | 被拒绝的违规路径字符串 |
+
+### 抛出位置
+
+当 `GPConfigManager.get_config()`、`get_object()`、`list_configs()` 和 `save()` 遇到格式错误或逃逸的路径时，都会抛出 `IllegalPathError`。
+
+### 示例
+
+```python
+from gpconfig import GPConfigManager, IllegalPathError
+
+manager = GPConfigManager("myapp")
+
+# 格式错误的路径
+for bad in ["", ".", "a..b", ".hidden", "global_env.", "a/b"]:
+    try:
+        manager.get_config(bad)
+    except IllegalPathError as e:
+        print(f"拒绝 {bad!r}: {e.path} -> {e}")
+
+# save() 拒绝包含 '.' 的路径（cfg_path 风格、'.yaml' 后缀、'..' 穿越）
+try:
+    manager.save(config, "backups/database_backup")  # 包含 '.'
+except IllegalPathError as e:
+    print(f"保存被拒绝: {e}")
 ```
 
 ## ConfigReadonlyError

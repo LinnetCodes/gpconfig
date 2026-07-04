@@ -80,7 +80,7 @@ db = manager.get_object("database")  # Automatically uses Database class
 
 ### default_cfg_path
 
-The default relative path when saving configs.
+The default relative **folder path** when saving configs. It is a folder path (file-system style, `/` or `\` separated), **not** a file path — the saved file is always named `{config.name}.yaml` inside this folder.
 
 ```python
 class CacheConfig(GPConfig):
@@ -88,6 +88,25 @@ class CacheConfig(GPConfig):
     default_cfg_path: ClassVar[str] = "cache"  # Save to cache/{name}.yaml
     host: str = "localhost"
 ```
+
+**Validation contract (fail-early):** `default_cfg_path` is validated at subclass-definition time via `__init_subclass__`, so a malformed value is caught at the `class MyConfig(GPConfig):` statement rather than on the first `save()` call:
+
+- It must be a `str` or `None`. A non-string, non-`None` value raises `TypeError`.
+- It must **not** contain `.` — this rejects cfg_path style (`llm.openai`), file-name suffixes (`cache.yaml`), and `..` traversal in one check. A value containing `.` raises `ValueError`.
+- Cross-OS: both `\` and `/` are accepted as separators.
+- The default `None` means the config is saved at the `cfg_folder` root (i.e. `cfg_folder/{config.name}.yaml`).
+
+```python
+class BadConfig(GPConfig):
+    cfg_class_name: ClassVar[str] = "BadConfig"
+    default_cfg_path: ClassVar[str] = "llm.openai"  # ValueError at class definition!
+
+class AlsoBad(GPConfig):
+    cfg_class_name: ClassVar[str] = "AlsoBad"
+    default_cfg_path: ClassVar[str] = "cache.yaml"  # ValueError: contains '.'
+```
+
+> **Note:** Only a subclass's own override is inspected (not the inherited `None` default), so subclasses that don't set `default_cfg_path` are unaffected. The runtime check in `GPConfigManager.save()` remains as defence-in-depth against dynamic mutation (e.g. `cls.default_cfg_path = "bad"`) after class definition.
 
 ## Instance Fields
 
