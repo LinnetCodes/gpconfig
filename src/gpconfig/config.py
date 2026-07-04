@@ -39,20 +39,24 @@ class GPConfig(BaseSettings):
         if self.readonly:
             raise ConfigReadonlyError(self.name)
 
-        # Get model dump, excluding non-YAML fields
+        # All metadata fields are excluded from the dump uniformly;
+        # fields that need to appear in the YAML are added back explicitly below.
         data = self.model_dump(
-            mode="python", exclude={"name", "cfg_file_path", "readonly"}
+            mode="python",
+            exclude={
+                "name",
+                "cfg_file_path",
+                "readonly",
+                "configured_class_name",
+            },
         )
 
-        # Add cfg_class_name to the saved data
+        # cfg_class_name is a mandatory ClassVar — always written.
         data["cfg_class_name"] = self.cfg_class_name
 
-        # Include configured_class_name if set
+        # configured_class_name is written only when set (None → omitted entirely).
         if self.configured_class_name:
             data["configured_class_name"] = self.configured_class_name
-        else:
-            # Remove it from data if it exists (from model_dump)
-            data.pop("configured_class_name", None)
 
         # Write to YAML file
         with open(self.cfg_file_path, "w", encoding="utf-8") as f:

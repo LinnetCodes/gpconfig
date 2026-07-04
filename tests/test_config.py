@@ -182,3 +182,114 @@ class TestSaveIncludesConfiguredClassName:
 
         # configured_class_name should NOT be in saved data when None
         assert "configured_class_name" not in saved_data
+
+
+class ServiceConfig(GPConfig):
+    """Test config with business fields and a non-default cfg_class_name."""
+
+    cfg_class_name: ClassVar[str] = "ServiceConfig"
+    service_host: str = "0.0.0.0"
+    service_port: int = 5432
+    enabled: bool = True
+
+
+class TestSaveMetadataHandling:
+    """Regression tests locking in save() metadata-field handling.
+
+    These pin the byte-identity contract: metadata fields are excluded from the
+    dump uniformly and added back by explicit rule.
+    """
+
+    def test_save_includes_configured_class_name_when_set(self, tmp_path: Path):
+        """configured_class_name set → present in YAML with its value."""
+        config = ServiceConfig(configured_class_name="MyService")
+        config.cfg_file_path = tmp_path / "service.yaml"
+        config.save()
+
+        content = config.cfg_file_path.read_text(encoding="utf-8")
+        assert "configured_class_name: MyService" in content
+
+    def test_save_omits_configured_class_name_when_none(self, tmp_path: Path):
+        """configured_class_name None → no configured_class_name key at all.
+
+        Guards against a `configured_class_name: null` line being written.
+        """
+        config = ServiceConfig()
+        config.cfg_file_path = tmp_path / "service.yaml"
+        config.save()
+
+        content = config.cfg_file_path.read_text(encoding="utf-8")
+        for line in content.splitlines():
+            stripped = line.strip()
+            assert not stripped.startswith("configured_class_name:"), (
+                f"Found configured_class_name line in YAML: {line!r}"
+            )
+
+    def test_save_preserves_cfg_class_name(self, tmp_path: Path):
+        """cfg_class_name ClassVar is always written to YAML."""
+        config = ServiceConfig()
+        config.cfg_file_path = tmp_path / "service.yaml"
+        config.save()
+
+        content = config.cfg_file_path.read_text(encoding="utf-8")
+        assert "cfg_class_name: ServiceConfig" in content
+
+    def test_save_excludes_name_path_and_readonly(self, tmp_path: Path):
+        """name, cfg_file_path, readonly must never appear in the saved YAML."""
+        config = ServiceConfig(readonly=True)
+        config.name = "should_not_leak"
+        config.cfg_file_path = tmp_path / "service.yaml"
+        config.readonly = False  # allow save
+        config.save()
+
+        content = config.cfg_file_path.read_text(encoding="utf-8")
+        for line in content.splitlines():
+            stripped = line.strip()
+            assert not stripped.startswith("name:"), f"Found 'name:' line: {line!r}"
+            assert not stripped.startswith("cfg_file_path:"), (
+                f"Found 'cfg_file_path:' line: {line!r}"
+            )
+            assert not stripped.startswith("readonly:"), (
+                f"Found 'readonly:' line: {line!r}"
+            )
+
+    def test_save_preserves_business_fields(self, tmp_path: Path):
+        """Business fields round-trip into the YAML with their values."""
+        config = ServiceConfig(
+            service_host="db.internal", service_port=6543, enabled=False
+        )
+        config.cfg_file_path = tmp_path / "service.yaml"
+        config.save()
+
+        content = config.cfg_file_path.read_text(encoding="utf-8")
+        assert "service_host: db.internal" in content
+        assert "service_port: 6543" in content
+        assert "enabled: false" in content
+
+    def test_round_trip_save_and_reload(self, tmp_path: Path):
+        """Save then reload yields a config with matching field values."""
+        import yaml
+
+        original = ServiceConfig(
+            service_host="cache.internal",
+            service_port=11211,
+            enabled=True,
+            configured_class_name="MemcachedService",
+        )
+        original.cfg_file_path = tmp_path / "service.yaml"
+        original.save()
+
+        # Reload the same way the manager does: parse YAML, drop the ClassVar
+        # cfg_class_name, then construct the config from the remaining fields.
+        with open(original.cfg_file_path, "r", encoding="utf-8") as f:
+            raw_data = yaml.safe_load(f)
+        data_for_config = {
+            k: v for k, v in raw_data.items() if k != "cfg_class_name"
+        }
+        reloaded = ServiceConfig(**data_for_config)
+
+        assert reloaded.service_host == original.service_host
+        assert reloaded.service_port == original.service_port
+        assert reloaded.enabled == original.enabled
+        assert reloaded.cfg_class_name == original.cfg_class_name
+        assert reloaded.configured_class_name == original.configured_class_name
