@@ -8,8 +8,12 @@ from gpconfig.config import GPConfig
 from gpconfig.exceptions import ConfigNotFoundError
 
 
-class TestConfig(GPConfig):
-    """Test config class."""
+class SampleConfig(GPConfig):
+    """Sample config class used as config_cls in tests.
+
+    Named SampleConfig (not SampleConfig) to avoid pytest trying to collect
+    it as a test class (Test* prefix convention).
+    """
 
     value: str = "default"
 
@@ -43,8 +47,8 @@ class TestGPConfigFolder:
 
     def test_get_config_returns_config_for_file_path(self, manager_with_folder):
         """get_config returns GPConfig when path is a file."""
-        result = manager_with_folder.get_config("services.api", TestConfig)
-        assert isinstance(result, TestConfig)
+        result = manager_with_folder.get_config("services.api", SampleConfig)
+        assert isinstance(result, SampleConfig)
         assert result.value == "api_value"
 
     def test_folder_path_priority_when_no_config_cls(self, manager_with_folder):
@@ -64,15 +68,15 @@ class TestGPConfigFolder:
             "value: file_value\n"
         )
 
-        result = manager_with_folder.get_config("services", TestConfig)
-        assert isinstance(result, TestConfig)
+        result = manager_with_folder.get_config("services", SampleConfig)
+        assert isinstance(result, SampleConfig)
         assert result.value == "file_value"
 
     def test_folder_get_config(self, manager_with_folder):
         """GPConfigFolder.get_config delegates to manager with prefixed path."""
         folder = manager_with_folder.get_config("services")
-        config = folder.get_config("api", TestConfig)
-        assert isinstance(config, TestConfig)
+        config = folder.get_config("api", SampleConfig)
+        assert isinstance(config, SampleConfig)
         assert config.value == "api_value"
 
     def test_folder_get_config_nested(self, manager_with_folder):
@@ -97,7 +101,7 @@ class TestGPConfigFolder:
             pass
 
         # Register classes
-        GPConfigManager.register_config_class(TestConfig)
+        GPConfigManager.register_config_class(SampleConfig)
         GPConfigManager.register_configurable_class(TestService)
 
         # Update config with configured_class_name
