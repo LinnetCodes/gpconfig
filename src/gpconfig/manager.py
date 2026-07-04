@@ -458,43 +458,47 @@ class GPConfigManager:
         if file_path.name == "global_env.yaml" and key:
             return self._get_nested_value(self._global_env, key, path)
 
-        # Load or retrieve cached config
+        # Load or retrieve cached value.
+        #
+        # The cache is populated for ALL access modes (full-object and key-path)
+        # so subsequent calls don't re-read disk. The cache stores heterogeneous
+        # values: a GPConfig instance (when a config_cls is known/registered) or
+        # the raw dict (when no config class applies). Key resolution below
+        # handles both.
         if cache_key not in self._config_cache:
-            # Load raw data first
             raw_data = self._load_yaml_dict(file_path, path)
 
-            if key:
-                # Key access - just return the value
-                return self._get_nested_value(raw_data, key, path)
-
-            # Auto-detect config class from cfg_class_name if not provided
+            # Auto-detect config class from cfg_class_name if not provided.
             if config_cls is None:
                 cfg_class_name = raw_data.get("cfg_class_name")
                 if cfg_class_name and cfg_class_name in self._config_classes:
                     config_cls = self._config_classes[cfg_class_name]
 
             if config_cls is None:
-                # No config class found - return raw dict
-                return raw_data
+                # No config class found - cache the raw dict.
+                self._config_cache[cache_key] = raw_data
+            else:
+                try:
+                    # Remove cfg_class_name from data before passing to config
+                    # class since it's a ClassVar, not an instance field.
+                    data_for_config = {
+                        k: v for k, v in raw_data.items() if k != "cfg_class_name"
+                    }
+                    self._config_cache[cache_key] = self._load_config(
+                        file_path, config_cls, data_for_config
+                    )
+                except ValidationError as e:
+                    raise ConfigValidationError(path, e)
 
-            try:
-                # Remove cfg_class_name from data before passing to config class
-                # since it's a ClassVar, not an instance field
-                data_for_config = {
-                    k: v for k, v in raw_data.items() if k != "cfg_class_name"
-                }
-                config = self._load_config(file_path, config_cls, data_for_config)
-            except ValidationError as e:
-                raise ConfigValidationError(path, e)
+        cached = self._config_cache[cache_key]
 
-            self._config_cache[cache_key] = config
-
-        config = self._config_cache[cache_key]
-
+        # Resolve the key (if any) against the cached value. A cached dict is
+        # used directly; a cached config object is dumped to its dict form.
         if key:
-            return self._get_nested_value(config.model_dump(), key, path)
+            source = cached if isinstance(cached, dict) else cached.model_dump()
+            return self._get_nested_value(source, key, path)
 
-        return config
+        return cached
 
     def _load_config(
         self, file_path: Path, config_cls: Type[T], data: Optional[dict] = None
@@ -641,6 +645,36 @@ class GPConfigManager:
 
         configurable_cls = self._configurable_classes[class_name]
         return configurable_cls(config)
+
+    def invalidate_cache(self, path: Optional[str] = None) -> None:
+        """Invalidate the config cache.
+
+        The cache is a snapshot tied to this manager instance's lifetime: once a
+        config file is loaded, subsequent get_config calls return the cached value
+        without re-reading disk. Use this method when a config file has been
+        modified externally (manual edit, another process/tool writing the file)
+        and the change must be visible to the running manager.
+
+        Args:
+            path: Optional dotted config path whose file should be invalidated.
+                  If None, clears the entire cache.
+
+        Raises:
+            IllegalPathError: If `path` is malformed (propagated from path
+                normalization). Well-formed paths that don't resolve to a known
+                file are silently ignored.
+        """
+        if path is None:
+            self._config_cache.clear()
+        else:
+            # Resolve the path to a file_path the same way get_config does,
+            # then drop that file's cache entry.
+            try:
+                file_path, _ = self._parse_path(path)
+                self._config_cache.pop(str(file_path), None)
+            except ConfigNotFoundError:
+                # Path doesn't resolve to a known file — nothing to invalidate.
+                pass
 
     def list_configs(self, path: str = "") -> list[str]:
         """List all config objects in a folder.

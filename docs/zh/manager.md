@@ -415,6 +415,59 @@ new_config.name = "test"
 manager.save(new_config)  # 保存到 default_cfg_path/test.yaml
 ```
 
+### invalidate_cache()
+
+使内存中的配置缓存失效，强制下一次 `get_config` 调用重新从磁盘读取。
+
+```python
+def invalidate_cache(self, path: Optional[str] = None) -> None:
+    """使配置缓存失效。"""
+```
+
+**参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `path` | `str \| None` | 可选的点分配置路径，指定要失效的文件。如果为 None，则清空整个缓存。 |
+
+**示例：**
+
+```python
+# 清空整个缓存（下一次 get_config 会全部重新加载）
+manager.invalidate_cache()
+
+# 清除单个文件的缓存条目
+manager.invalidate_cache("database")
+
+# 格式正确但无法解析到文件的路径是空操作（不报错）
+manager.invalidate_cache("does.not.exist")
+```
+
+**注意：** 格式错误的路径会抛出 `IllegalPathError`；只有格式正确但文件不存在的路径会被静默忽略。
+
+## 配置缓存与失效
+
+`GPConfigManager` 在内存中缓存配置对象，缓存的生命周期与该 manager 实例一致。一旦通过 `get_config` 加载了配置文件，后续调用会直接返回缓存的对象，而不会重新从磁盘读取。这适用于**整对象访问**（`get_config("database")`）和键路径访问（`get_config("database.port")`）——两者都会填充缓存。
+
+这是一种**快照（snapshot）**模型：内存中的缓存不会自动检测配置文件的外部更改。
+
+当你通过 `GPConfigManager.save()`（或 `GPConfig.save()`）保存配置时，缓存会自动更新以反映已保存的对象。但是，如果配置文件被其他方式修改（手动编辑、其他进程或工具写入），manager 会继续返回过期的缓存值。
+
+要在被外部修改后强制重新加载，请调用 `manager.invalidate_cache()`（清空整个缓存）或 `manager.invalidate_cache(path)`（清除单个文件的缓存条目）。下一次 `get_config` 调用会重新从磁盘读取。
+
+```python
+# 第一次访问时填充缓存
+config = manager.get_config("database")  # 读取磁盘并缓存
+
+# 后续调用命中缓存（无磁盘 I/O）
+config2 = manager.get_config("database")  # 命中缓存
+assert config is config2
+
+# 在缓存失效之前，外部修改不会被看到
+manager.invalidate_cache()
+config3 = manager.get_config("database")  # 再次读取磁盘
+```
+
 ## GPConfigFolder
 
 表示配置文件夹层次结构中的子文件夹。提供对特定文件夹内配置的便捷访问。

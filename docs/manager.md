@@ -415,6 +415,59 @@ new_config.name = "test"
 manager.save(new_config)  # Save to default_cfg_path/test.yaml
 ```
 
+### invalidate_cache()
+
+Invalidate the in-memory config cache, forcing the next `get_config` call to re-read from disk.
+
+```python
+def invalidate_cache(self, path: Optional[str] = None) -> None:
+    """Invalidate the config cache."""
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `path` | `str \| None` | Optional dotted config path whose file should be invalidated. If None, clears the entire cache. |
+
+**Examples:**
+
+```python
+# Clear the entire cache (next get_config reloads everything)
+manager.invalidate_cache()
+
+# Clear a single file's entry
+manager.invalidate_cache("database")
+
+# Well-formed paths that don't resolve to a file are a no-op (no error)
+manager.invalidate_cache("does.not.exist")
+```
+
+**Note:** A malformed path raises `IllegalPathError`; only well-formed-but-missing paths are silently ignored.
+
+## Config Caching and Invalidation
+
+`GPConfigManager` caches config objects in memory for the lifetime of the manager instance. Once a config file is loaded via `get_config`, subsequent calls return the cached object without re-reading the file from disk. This applies to **both** full-object access (`get_config("database")`) and key-path access (`get_config("database.port")`) — both populate the cache.
+
+This is a **snapshot** model: the in-memory cache does not automatically detect external changes to the config files.
+
+When you save a config via `GPConfigManager.save()` (or `GPConfig.save()`), the cache is updated automatically to reflect the saved object. However, if a config file is modified by other means (manual editing, another process or tool writing to it), the manager will continue serving the stale cached value.
+
+To force a reload after an external modification, call `manager.invalidate_cache()` (clears the entire cache) or `manager.invalidate_cache(path)` (clears a single file's entry). The next `get_config` call will re-read from disk.
+
+```python
+# Cache is populated on first access
+config = manager.get_config("database")  # reads disk, caches
+
+# Subsequent calls hit the cache (no disk I/O)
+config2 = manager.get_config("database")  # cache hit
+assert config is config2
+
+# External modification is NOT seen until the cache is invalidated
+manager.invalidate_cache()
+config3 = manager.get_config("database")  # reads disk again
+```
+
 ## GPConfigFolder
 
 Represents a subfolder in the config folder hierarchy. Provides convenient access to configs within a specific folder.
