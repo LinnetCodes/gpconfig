@@ -386,6 +386,16 @@ llm_items = manager.list_configs("services.llm")
 
 保存配置到文件。
 
+> ⚠️ **明文存储 —— 敏感信息请自行加密。**
+>
+> `gpconfig` 将所有配置值以**明文**写入 YAML 文件，包括密码、API Key、令牌等字段。本库**不**提供加密、脱敏或 `SecretStr` 处理 —— 这是有意为之的设计，因为依赖 YAML 配置库来保护密钥并不能替代真正的密钥管理方案。
+>
+> 如果需要存储敏感信息：
+> - 在放入配置文件之前**自行加密**（例如使用来自密钥管理服务、环境变量或 KMS 的密钥），并在应用代码中于 `gpconfig` 加载后解密。
+> - 或者**完全不将密钥写入配置文件**，改用环境变量或专用密钥存储注入。
+>
+> 作为基本防护，请限制 `cfg_folder` 的文件权限，但不要将明文配置文件视为安全的密钥存储。
+
 ```python
 def save(self, config: "GPConfig", path: Optional[str] = None) -> None:
     """Save a GPConfig instance to a config file."""

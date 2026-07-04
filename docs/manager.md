@@ -389,6 +389,16 @@ llm_items = manager.list_configs("services.llm")
 
 Save a config to a file.
 
+> ⚠️ **Plaintext storage — encrypt sensitive data yourself.**
+>
+> `gpconfig` writes all configuration values to YAML files **in plaintext**, including fields like passwords, API keys, and tokens. The library intentionally does **not** provide encryption, masking, or `SecretStr` handling — this is by design, since relying on a YAML config library for secret protection is not a substitute for a proper secrets-management layer.
+>
+> If you need to store sensitive values:
+> - **Encrypt them yourself** before placing them in config files (e.g. with a key from a secrets manager, environment variable, or KMS), and decrypt in your application code after `gpconfig` loads them.
+> - Or keep secrets **out of config files entirely** and inject them via environment variables or a dedicated secrets store.
+>
+> Restrict file permissions on your `cfg_folder` as a baseline defense, but do not treat plaintext config files as a secure secret store.
+
 ```python
 def save(self, config: "GPConfig", path: Optional[str] = None) -> None:
     """Save a GPConfig instance to a config file."""
