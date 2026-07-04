@@ -21,6 +21,14 @@ class ConfigNotFoundError(GPConfigError):
         super().__init__(message or f"Config not found: {path}")
 
 
+class IllegalPathError(GPConfigError):
+    """Raised when a config path is malformed or escapes the cfg_folder."""
+
+    def __init__(self, path: str, message: str = ""):
+        self.path = path
+        super().__init__(message or f"Illegal config path: {path}")
+
+
 class ConfigReadonlyError(GPConfigError):
     """Raised when trying to modify or save a readonly config."""
 

@@ -14,6 +14,7 @@ from gpconfig.exceptions import (
     ConfigFolderError,
     ConfigNotFoundError,
     ConfigValidationError,
+    IllegalPathError,
     RegistrationError,
 )
 
@@ -255,6 +256,62 @@ class GPConfigManager:
             )
         return raw_data
 
+    def _normalize_path(self, path: str) -> list[str]:
+        """Split a dot-notation config path into parts, stripping the optional
+        project_name prefix.
+
+        Args:
+            path: Dot-notation config path (e.g. "svc" or "myapp.svc.port").
+
+        Returns:
+            List of path parts with the project_name prefix removed if present.
+
+        Raises:
+            IllegalPathError: If the path is empty, consists only of dots, has
+                empty segments (leading/trailing/consecutive dots), or contains
+                literal '/' or '\\' characters.
+        """
+        if not path:
+            raise IllegalPathError(path, "empty path")
+        if "/" in path or "\\" in path:
+            raise IllegalPathError(
+                path, "path contains literal '/' or '\\' (use dot notation)"
+            )
+        parts = path.split(".")
+        if any(part == "" for part in parts):
+            # Distinguish leading/trailing/consecutive/pure-dots for a helpful message.
+            if all(part == "" for part in parts):
+                raise IllegalPathError(path, "path consists only of dots")
+            if parts[0] == "":
+                raise IllegalPathError(path, "path has leading dot (empty first segment)")
+            if parts[-1] == "":
+                raise IllegalPathError(path, "path has trailing dot (empty last segment)")
+            raise IllegalPathError(
+                path, "path contains empty segment (consecutive dots)"
+            )
+        # Strip optional project_name prefix.
+        if parts[0] == self._project_name:
+            parts = parts[1:]
+        return parts
+
+    def _assert_within_cfg_folder(self, file_path: Path, path_for_error: str) -> None:
+        """Raise IllegalPathError if file_path resolves outside cfg_folder.
+
+        Args:
+            file_path: The resolved file path to check.
+            path_for_error: The original dotted path string (for error context).
+
+        Raises:
+            IllegalPathError: If file_path resolves to a location outside
+                              cfg_folder (path traversal defence-in-depth).
+        """
+        resolved = file_path.resolve()
+        cfg_root = self._cfg_folder.resolve()
+        if resolved != cfg_root and cfg_root not in resolved.parents:
+            raise IllegalPathError(
+                path_for_error, f"path escapes cfg_folder: {file_path}"
+            )
+
     def _parse_path(self, path: str) -> tuple[Path, Optional[str]]:
         """
         Parse a config path into (file_path, optional_key).
@@ -270,11 +327,7 @@ class GPConfigManager:
         """
         from gpconfig.exceptions import ConfigNotFoundError
 
-        parts = path.split(".")
-
-        # Strip optional project name prefix
-        if parts[0] == self._project_name:
-            parts = parts[1:]
+        parts = self._normalize_path(path)
 
         if not parts:
             raise ConfigNotFoundError(path, "Empty config path")
@@ -300,6 +353,7 @@ class GPConfigManager:
 
             yaml_path = candidate_path / f"{file_part}.yaml"
             if yaml_path.exists():
+                self._assert_within_cfg_folder(yaml_path, path)
                 return (yaml_path, ".".join(key_parts) if key_parts else None)
 
         raise ConfigNotFoundError(path)
@@ -313,11 +367,7 @@ class GPConfigManager:
         Returns:
             Tuple of (exists, full_path).
         """
-        parts = path.split(".")
-
-        # Strip optional project name prefix
-        if parts[0] == self._project_name:
-            parts = parts[1:]
+        parts = self._normalize_path(path)
 
         if not parts:
             return (False, Path())
@@ -338,9 +388,7 @@ class GPConfigManager:
             A cached GPConfigFolder instance for the path.
         """
         # Normalize path
-        parts = path.split(".")
-        if parts[0] == self._project_name:
-            parts = parts[1:]
+        parts = self._normalize_path(path)
         normalized_path = ".".join(parts)
 
         if normalized_path not in self._folder_cache:
@@ -597,16 +645,12 @@ class GPConfigManager:
         Raises:
             ConfigNotFoundError: If the folder doesn't exist.
         """
-        if path:
-            # Convert dot notation to path separators
-            folder_path = self._cfg_folder / Path(
-                path.replace(".", "/") if "." in path else path
-            )
-        else:
+        if path == "":
             folder_path = self._cfg_folder
-
-        if not folder_path.exists() or not folder_path.is_dir():
-            raise ConfigNotFoundError(path or "/", f"Folder '{path}' does not exist")
+        else:
+            exists, folder_path = self._check_folder_exists(path)
+            if not exists:
+                raise ConfigNotFoundError(path, f"Folder '{path}' does not exist")
 
         items = []
         for item in folder_path.iterdir():
@@ -671,6 +715,10 @@ class GPConfigManager:
                 file_path = self._cfg_folder / default_path / f"{config.name}.yaml"
             else:
                 file_path = self._cfg_folder / f"{config.name}.yaml"
+
+        # Defence-in-depth: ensure the resolved file stays inside cfg_folder
+        # (guards against path / default_cfg_path containing '..' escapes).
+        self._assert_within_cfg_folder(file_path, path if path is not None else config.name)
 
         # Create parent directories if needed
         file_path.parent.mkdir(parents=True, exist_ok=True)
