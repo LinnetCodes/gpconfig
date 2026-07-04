@@ -45,11 +45,9 @@ class Cache(GPConfigurable):
 @pytest.fixture(autouse=True)
 def reset_registry():
     """Reset class-level registries before each test."""
-    GPConfigManager._config_classes = {}
-    GPConfigManager._configurable_classes = {}
+    GPConfigManager.reset_registries()
     yield
-    GPConfigManager._config_classes = {}
-    GPConfigManager._configurable_classes = {}
+    GPConfigManager.reset_registries()
 
 
 @pytest.fixture
@@ -194,6 +192,49 @@ class TestConfigurableRegistryRemoved:
     def test_configurable_registry_does_not_exist(self):
         """_configurable_registry should be removed."""
         assert not hasattr(GPConfigManager, "_configurable_registry")
+
+
+class TestResetRegistries:
+    """Test GPConfigManager.reset_registries() classmethod."""
+
+    def test_reset_clears_both_registries_after_registration(self):
+        """reset_registries() empties both _config_classes and _configurable_classes."""
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(Database)
+
+        # Sanity: registries are populated before reset
+        assert len(GPConfigManager._config_classes) > 0
+        assert len(GPConfigManager._configurable_classes) > 0
+
+        GPConfigManager.reset_registries()
+
+        assert GPConfigManager._config_classes == {}
+        assert GPConfigManager._configurable_classes == {}
+
+    def test_reset_when_already_empty_is_noop(self):
+        """reset_registries() does not error when registries are already empty."""
+        GPConfigManager.reset_registries()  # registries already cleared by autouse fixture
+        assert GPConfigManager._config_classes == {}
+        assert GPConfigManager._configurable_classes == {}
+
+        # Calling again must still be safe
+        GPConfigManager.reset_registries()
+        assert GPConfigManager._config_classes == {}
+        assert GPConfigManager._configurable_classes == {}
+
+    def test_reset_preserves_dict_object_identity(self):
+        """reset_registries() uses .clear(), so the dict objects keep their identity."""
+        config_classes_before = GPConfigManager._config_classes
+        configurable_classes_before = GPConfigManager._configurable_classes
+
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(Database)
+
+        GPConfigManager.reset_registries()
+
+        # Same dict objects (mutated in place), not reassigned to new dicts
+        assert GPConfigManager._config_classes is config_classes_before
+        assert GPConfigManager._configurable_classes is configurable_classes_before
 
 
 class TestGetObjectWithConfiguredClassName:

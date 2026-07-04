@@ -579,6 +579,19 @@ class GPConfigManager:
             )
         cls._configurable_classes[class_name] = configurable_cls
 
+    @classmethod
+    def reset_registries(cls) -> None:
+        """Clear both class-level registries.
+
+        Removes all registered config classes and configurable classes.
+        Primarily intended for use in test teardown to isolate tests that
+        register classes. The registries are process-global class state by
+        design (see class docstring); this method provides a clean public
+        entry point for resetting them.
+        """
+        cls._config_classes.clear()
+        cls._configurable_classes.clear()
+
     def get_object(self, path: str) -> Any:
         """Get a configurable object instance from a config path.
 
