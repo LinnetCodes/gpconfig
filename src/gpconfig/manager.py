@@ -294,13 +294,21 @@ class GPConfigManager:
             raise ConfigNotFoundError(
                 path_for_error, f"File vanished during read: {file_path}"
             ) from e
+        except yaml.YAMLError as e:
+            # Syntax/parse errors (scanner, parser, composer). When loaded from
+            # a file object, PyYAML embeds the file path, line, and column in
+            # str(e) (e.g. 'in "...cfg.yaml", line 3, column 5'), so wrapping it
+            # as ConfigValidationError surfaces the full location context. The
+            # path_for_error (dotted config name) is carried on the exception.
+            raise ConfigValidationError(path_for_error, e) from e
         if raw_data is None:
             return {}
         if not isinstance(raw_data, dict):
             raise ConfigValidationError(
                 path_for_error,
                 TypeError(
-                    f"Top-level YAML must be a mapping, got {type(raw_data).__name__}"
+                    f"Top-level YAML in {file_path} must be a mapping, "
+                    f"got {type(raw_data).__name__}"
                 ),
             )
         return raw_data

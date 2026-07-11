@@ -61,11 +61,53 @@ class TestLoadYamlDictDirect:
         assert exc_info.value.path == "some.dotted.path"
 
     def test_scalar_yaml_raises_validation_error(self, manager, tmp_path):
-        """_load_yaml_dict raises ConfigValidationError for a top-level scalar."""
+        """_load_yaml_dict raises ConfigValidationError for a top-level scalar.
+
+        Even when the caller passes only a dotted logical path (as get_config
+        does), the file path must still appear in the message so users can
+        locate the offending file on disk.
+        """
         f = tmp_path / "scalar.yaml"
         f.write_text("just a string\n", encoding="utf-8")
-        with pytest.raises(ConfigValidationError):
-            manager._load_yaml_dict(f, str(f))
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager._load_yaml_dict(f, "scalar")  # dotted name, not file path
+        assert exc_info.value.path == "scalar"
+        # File path must be present regardless of the logical path used.
+        assert str(f) in str(exc_info.value)
+
+    def test_malformed_yaml_raises_validation_error_with_path_and_line(
+        self, manager, tmp_path
+    ):
+        """A YAML syntax error surfaces as ConfigValidationError carrying the
+        dotted path, the file path, and a line number.
+
+        Previously a syntax error escaped _load_yaml_dict as a raw yaml.YAMLError
+        with no config-file context. PyYAML embeds the offending line/column in
+        str(error) when loaded from a file, so the message should let users jump
+        straight to the broken line.
+        """
+        f = tmp_path / "broken.yaml"
+        # Unclosed flow-style mapping quote: a classic YAML scanner error.
+        f.write_text('host: "localhost\nport: 5432\n', encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager._load_yaml_dict(f, "broken")
+        err = exc_info.value
+        # Logical (dotted) path is carried on the exception for config lookup.
+        assert err.path == "broken"
+        msg = str(err)
+        # File path must be present so the user can open the offending file.
+        assert str(f) in msg
+        # A line number should be present (PyYAML formats marks as "line X").
+        assert "line" in msg
+
+    def test_malformed_yaml_via_get_config_carries_path(self, manager, tmp_path):
+        """get_config surfaces a YAML syntax error with the config name as path."""
+        broken = tmp_path / "broken.yaml"
+        broken.write_text("host: [unclosed\n", encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager.get_config("broken")
+        assert exc_info.value.path == "broken"
+        assert str(broken) in str(exc_info.value)
 
 
 class TestGetConfigYamlTypeValidation:

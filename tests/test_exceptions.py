@@ -65,3 +65,13 @@ class TestConfigValidationError:
         msg = str(error)
         assert "some.yaml" in msg
         assert "bad value" in msg
+
+    def test_message_is_dynamic_when_original_error_changes(self):
+        """ConfigValidationError reflects its original_error's message verbatim,
+        so enriching the original_error's message (e.g. embedding a file path)
+        flows through to str(error). This is the contract _load_yaml_dict relies
+        on to surface the file path without changing the exception's signature.
+        """
+        original = ValueError("file: /etc/x.yaml, got str")
+        error = ConfigValidationError("some.yaml", original)
+        assert "/etc/x.yaml" in str(error)
