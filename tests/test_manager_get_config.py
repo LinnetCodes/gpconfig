@@ -94,7 +94,8 @@ class TestGetConfig:
     def test_get_config_raises_validation_error_for_invalid_yaml(self, tmp_path):
         """get_config raises ConfigValidationError for invalid config."""
         (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
-        (tmp_path / "database.yaml").write_text("host: localhost\nport: not_a_number\n")
+        database_yaml = tmp_path / "database.yaml"
+        database_yaml.write_text("host: localhost\nport: not_a_number\n")
 
         manager = GPConfigManager("testproject", cfg_folder=tmp_path)
 
@@ -102,6 +103,60 @@ class TestGetConfig:
             manager.get_config("database", DatabaseConfig)
 
         assert exc_info.value.path == "database"
+
+    def test_validation_error_message_carries_file_path_and_field(self, tmp_path):
+        """A Pydantic validation error message includes the file path and the
+        offending field name, so users can locate both the file and the bad key.
+        """
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        database_yaml = tmp_path / "database.yaml"
+        database_yaml.write_text("host: localhost\nport: not_a_number\n")
+
+        manager = GPConfigManager("testproject", cfg_folder=tmp_path)
+
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager.get_config("database", DatabaseConfig)
+
+        msg = str(exc_info.value)
+        # Logical path and on-disk file path both present.
+        assert "database" in msg
+        assert str(database_yaml) in msg
+        # Pydantic names the offending field directly.
+        assert "port" in msg
+
+    def test_validation_error_message_carries_extra_forbidden_field(self, tmp_path):
+        """An extra-forbidden field error names the unexpected key and the file."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        database_yaml = tmp_path / "database.yaml"
+        database_yaml.write_text(
+            "host: localhost\nport: 5432\ntypo_field: oops\n", encoding="utf-8"
+        )
+
+        manager = GPConfigManager("testproject", cfg_folder=tmp_path)
+
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager.get_config("database", DatabaseConfig)
+
+        msg = str(exc_info.value)
+        assert str(database_yaml) in msg
+        # The unexpected key must be named.
+        assert "typo_field" in msg
+
+    def test_validation_error_message_carries_missing_field(self, tmp_path):
+        """A missing-required-field error names the missing key and the file."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        database_yaml = tmp_path / "database.yaml"
+        # host is required; omit it.
+        database_yaml.write_text("port: 5432\n", encoding="utf-8")
+
+        manager = GPConfigManager("testproject", cfg_folder=tmp_path)
+
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager.get_config("database", DatabaseConfig)
+
+        msg = str(exc_info.value)
+        assert str(database_yaml) in msg
+        assert "host" in msg
 
 
 class TestGetConfigFolderDetection:

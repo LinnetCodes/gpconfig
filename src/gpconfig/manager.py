@@ -602,7 +602,18 @@ class GPConfigManager:
                         file_path, config_cls, data_for_config
                     )
                 except ValidationError as e:
-                    raise ConfigValidationError(path, e)
+                    # Pydantic errors name the offending field and describe the
+                    # problem, but have no knowledge of the source file. Wrap so
+                    # the message carries the dotted config path (.path), the
+                    # on-disk file path, and Pydantic's field-level detail. The
+                    # original ValidationError is preserved as __cause__ and on
+                    # .original_error for programmatic access.
+                    raise ConfigValidationError(
+                        path,
+                        ValueError(
+                            f"Pydantic validation failed in {file_path}:\n{e}"
+                        ),
+                    ) from e
 
         cached = self._config_cache[cache_key]
 
