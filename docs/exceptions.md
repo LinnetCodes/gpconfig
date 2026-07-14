@@ -291,12 +291,22 @@ class ConfigValidationError(GPConfigError):
         super().__init__(f"Validation failed for '{path}': {original_error}")
 ```
 
+### Trigger Conditions
+
+`ConfigValidationError` is raised by `GPConfigManager.get_config()` (and the YAML loading path it uses) whenever a config file cannot be turned into a valid config object:
+
+- **YAML syntax/parse error** — malformed YAML (bad indentation, unclosed quotes/brackets, tabs). The original error is a `yaml.YAMLError`, whose message carries the file path, line, and column (e.g. `in ".../server.yaml", line 3, column 5`).
+- **Non-dict top level** — the YAML parses but its root is a list or scalar instead of a mapping. The message embeds the on-disk file path.
+- **Pydantic validation failure** — the YAML parses to a dict but a field fails schema validation (wrong type, missing required field, or an extra key under `extra="forbid"`). The original error is a Pydantic `ValidationError`, whose message names the offending field.
+
+In all cases the exception message carries the **dotted config path** (on `.path`), the **on-disk file path**, and the underlying error's detail (field name and/or line number) so you can locate the problem precisely.
+
 ### Attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `path` | `str` | The config path that failed validation |
-| `original_error` | `Exception` | The original Pydantic validation error |
+| `path` | `str` | The dotted config path that failed validation |
+| `original_error` | `Exception` | The underlying error: a Pydantic `ValidationError`, a `yaml.YAMLError`, or a `TypeError` (non-dict top level) |
 
 ### Examples
 
@@ -319,6 +329,8 @@ try:
     config = manager.get_config("server", ServerConfig)
 except ConfigValidationError as e:
     print(f"Config validation failed: {e.path}")
+    # e.path is the dotted config path, e.g. "server".
+    # str(e) also embeds the on-disk file path and the offending field name.
     print(f"Original error: {e.original_error}")
 ```
 

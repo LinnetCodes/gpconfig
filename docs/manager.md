@@ -321,6 +321,7 @@ def get_config(
 **Raises:**
 - `IllegalPathError` if the path is malformed or escapes `cfg_folder`.
 - `ConfigNotFoundError` if a well-formed path does not resolve to an existing file or key.
+- `ConfigValidationError` if the YAML file fails to parse (syntax error, non-dict top level) or fails Pydantic validation. The message carries the dotted config path, the on-disk file path, and the offending field/line; the underlying error is on `.original_error`.
 
 **Examples:**
 

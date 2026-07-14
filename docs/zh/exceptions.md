@@ -291,12 +291,22 @@ class ConfigValidationError(GPConfigError):
         super().__init__(f"Validation failed for '{path}': {original_error}")
 ```
 
+### 触发条件
+
+当配置文件无法被转成合法的配置对象时，`GPConfigManager.get_config()`（及其 YAML 加载路径）会抛出 `ConfigValidationError`：
+
+- **YAML 语法/解析错误** —— 畸形 YAML（缩进错误、引号/括号未闭合、使用了 Tab 等）。原始错误为 `yaml.YAMLError`，其消息带有文件路径、行号和列号（例如 `in ".../server.yaml", line 3, column 5`）。
+- **顶层非字典** —— YAML 能解析，但根节点是列表或标量而非映射。消息中嵌入磁盘上的文件路径。
+- **Pydantic 校验失败** —— YAML 解析成字典，但某字段未通过 schema 校验（类型错误、缺少必填字段、或在 `extra="forbid"` 下出现多余字段）。原始错误为 Pydantic 的 `ValidationError`，其消息会指出出错的字段名。
+
+无论哪种情况，异常消息都携带**点分配置路径**（`.path`）、**磁盘上的文件路径**，以及底层错误的细节（字段名和/或行号），方便你精确定位问题。
+
 ### 属性
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
-| `path` | `str` | 验证失败的配置路径 |
-| `original_error` | `Exception` | 原始的 Pydantic 验证错误 |
+| `path` | `str` | 验证失败的点分配置路径 |
+| `original_error` | `Exception` | 底层错误：Pydantic 的 `ValidationError`、`yaml.YAMLError`，或 `TypeError`（顶层非字典） |
 
 ### 示例
 
@@ -319,6 +329,8 @@ try:
     config = manager.get_config("server", ServerConfig)
 except ConfigValidationError as e:
     print(f"配置验证失败: {e.path}")
+    # e.path 是点分配置路径，例如 "server"。
+    # str(e) 同时会嵌入磁盘上的文件路径和出错字段名。
     print(f"原始错误: {e.original_error}")
 ```
 
