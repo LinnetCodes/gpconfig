@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-14
+
+**Error-message enhancement release.** No public API or behaviour changes — this
+version improves the diagnostic information carried by exceptions raised while
+loading YAML config files, so users can locate the source of config errors more
+quickly. Exception class signatures are unchanged.
+
+### Changed
+- YAML syntax/parse errors (bad indentation, unclosed quotes/brackets, etc.) are now caught in `_load_yaml_dict` and wrapped as `ConfigValidationError` instead of escaping as a raw `yaml.YAMLError` with no config-file context. PyYAML embeds the file path, line, and column in the error message, so the wrapped exception surfaces the full location (`str(error)` carries the dotted config path via `.path`, plus the on-disk file path and line/column).
+- The non-dict top-level `ConfigValidationError` message now embeds the on-disk file path (previously only described the type mismatch), so users can locate the file even when only a dotted logical path was passed.
+- `ConfigValidationError` raised from Pydantic `ValidationError` in `get_config` now embeds the on-disk file path alongside Pydantic's field-level detail. The original `ValidationError` is preserved as `__cause__` and on `.original_error` for programmatic access.
+
 ## [0.3.3] - 2026-07-05
 
 **The first Beta release.** This version addresses all findings from a comprehensive
@@ -43,5 +55,6 @@ and documentation completeness. See the sections below for details.
 - Documented the read-only `global_env` contract (`MappingProxyType`, mutation errors, `dict(...)` copy) in both EN and ZH manager references.
 - Documented the `default_cfg_path` folder-path contract and `__init_subclass__` fail-early validation in both EN and ZH GPConfig references.
 
-[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.3...HEAD
+[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.4...HEAD
+[0.3.4]: https://github.com/LinnetCodes/gpconfig/releases/tag/version-0.3.4
 [0.3.3]: https://github.com/LinnetCodes/gpconfig/releases/tag/version-0.3.3
