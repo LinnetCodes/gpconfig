@@ -12,7 +12,7 @@
 
 1. 仓库根目录的 `AGENTS.md`，特别是 `.venv`、测试、文档和 Git 约束。
 2. 本文件，恢复当前工作流状态。
-3. [原始需求](../../dev_docs/gpconfig-context-aware-object-construction-refactor.md)。
+3. [原始需求](gpconfig-context-aware-object-construction-refactor.md)。
 4. [已批准设计](specs/2026-08-02-context-aware-object-construction-design.md)。
 5. [待审阅 Implementation Plan](plans/2026-08-02-context-aware-object-construction.md)。
 

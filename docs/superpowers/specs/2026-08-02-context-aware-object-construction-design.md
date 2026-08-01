@@ -6,7 +6,7 @@
 - 状态：已批准，待用户复核
 - 目标分支：`context-aware-object-construction-refactor`
 - 基于版本：gpconfig 0.3.4
-- 输入需求：`dev_docs/gpconfig-context-aware-object-construction-refactor.md`
+- 输入需求：[原始需求](../gpconfig-context-aware-object-construction-refactor.md)
 
 ## 需求合理性结论
 
