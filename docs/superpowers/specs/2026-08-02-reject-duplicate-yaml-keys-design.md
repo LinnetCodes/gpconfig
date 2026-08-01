@@ -77,8 +77,9 @@ The alternatives were rejected for the following reasons:
 `src/gpconfig/_yaml.py` will contain:
 
 - `_RejectDuplicateKeysSafeLoader`, a private subclass of `yaml.SafeLoader`.
-- A private mapping constructor registered only on that subclass for PyYAML's
-  default mapping tag.
+- A `construct_mapping()` override on that subclass. PyYAML's existing
+  generator-based default mapping-tag constructor remains registered and calls
+  the override through normal method dispatch.
 - `load_yaml(stream: TextIO) -> Any`, the private-module loading entry point.
 
 The module will call `yaml.load(stream, Loader=_RejectDuplicateKeysSafeLoader)`.
@@ -87,7 +88,7 @@ available constructors. Because the custom loader inherits `SafeLoader` and
 adds only a mapping constructor, it does not enable Python-object construction
 or otherwise broaden the safe input language.
 
-The constructor will process each mapping as follows:
+The `construct_mapping()` override will process each mapping as follows:
 
 1. Snapshot the mapping's explicit key nodes before merge expansion, excluding
    nodes tagged as YAML merge keys.
@@ -100,14 +101,15 @@ The constructor will process each mapping as follows:
 4. If a key was already seen in this mapping, raise
    `yaml.constructor.ConstructorError`. Its context mark identifies the first
    key node and its problem mark identifies the repeated key node.
-5. If no duplicate exists, delegate mapping construction to PyYAML's existing
-   `SafeLoader` implementation. Unhashable keys continue through the existing
-   PyYAML error path.
+5. If no duplicate exists, delegate mapping construction to the superclass.
+   Unhashable keys continue through the existing PyYAML error path.
 
-Because the constructor is registered on the loader, nested mappings and
-mappings inside sequences use it automatically. The registration is local to
-the private subclass and does not mutate PyYAML's global `SafeLoader` behavior
-for applications that also import `yaml`.
+The subclass retains PyYAML's generator-based `construct_yaml_map()`, which is
+required for recursive anchor/alias mappings. That inherited constructor calls
+the overridden `construct_mapping()` method, so nested mappings and mappings
+inside sequences use the check automatically without changing tag
+registrations. The subclass does not mutate PyYAML's global `SafeLoader`
+behavior for applications that also import `yaml`.
 
 ### Manager integration
 
@@ -215,6 +217,8 @@ Add regression coverage to `tests/test_yaml_loading.py` at the existing
 8. The same key in different mappings loads successfully.
 9. A valid merge plus explicit override loads to the same dictionary produced
    by PyYAML 6.0.3 before the fix.
+10. A valid recursive anchor/alias mapping retains PyYAML's self-reference
+    identity instead of failing as an unconstructable recursive node.
 
 Existing tests already preserve the expected behavior for normal mappings,
 empty and comments-only documents, top-level lists and scalars, malformed YAML,
