@@ -219,6 +219,8 @@ Add regression coverage to `tests/test_yaml_loading.py` at the existing
    by PyYAML 6.0.3 before the fix.
 10. A valid recursive anchor/alias mapping retains PyYAML's self-reference
     identity instead of failing as an unconstructable recursive node.
+11. Importing gpconfig's private loader does not change the behavior of direct
+    application calls to `yaml.safe_load()`.
 
 Existing tests already preserve the expected behavior for normal mappings,
 empty and comments-only documents, top-level lists and scalars, malformed YAML,
