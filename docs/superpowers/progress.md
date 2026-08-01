@@ -26,7 +26,7 @@
 
 ## 原始任务
 
-阅读 `dev_docs/gpconfig-reject-duplicate-yaml-keys.md`，验证 gpconfig 是否会静默接受
+阅读 `docs/superpowers/gpconfig-reject-duplicate-yaml-keys.md`，验证 gpconfig 是否会静默接受
 YAML 重复键；若问题存在，则设计和规划修复。实现完成时版本升级到 `0.3.5`，必要时同步
 中英文文档并更新 changelog。整个工作遵循 Superpowers 流程，并在 implementation plan
 完成后停下等待用户审核。所有必要提交均在 `reject-duplicate-yaml-keys` 分支完成。
