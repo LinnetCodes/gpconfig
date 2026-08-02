@@ -3,6 +3,7 @@
 import pytest
 from pathlib import Path
 
+from gpconfig.configurable import GPConfigurable, GPConfigurableContext
 from gpconfig.manager import GPConfigManager, GPConfigFolder
 from gpconfig.config import GPConfig
 from gpconfig.exceptions import ConfigNotFoundError
@@ -95,23 +96,34 @@ class TestGPConfigFolder:
 
     def test_folder_get_object(self, manager_with_folder):
         """GPConfigFolder.get_object delegates to manager with prefixed path."""
-        from gpconfig.configurable import GPConfigurable
-
         class TestService(GPConfigurable):
-            pass
+            received_context: GPConfigurableContext | None = None
 
-        # Register classes
+            @classmethod
+            def from_config(
+                cls,
+                config: SampleConfig,
+                *,
+                context: GPConfigurableContext,
+            ) -> "TestService":
+                cls.received_context = context
+                return cls(config)
+
         GPConfigManager.register_config_class(SampleConfig)
         GPConfigManager.register_configurable_class(TestService)
 
-        # Update config with configured_class_name
         (manager_with_folder.cfg_folder / "services" / "api.yaml").write_text(
-            "value: api_value\nconfigured_class_name: TestService\n"
+            "value: api_value\nconfigured_class_name: TestService\n",
+            encoding="utf-8",
         )
 
         folder = manager_with_folder.get_config("services")
         obj = folder.get_object("api")
+
         assert isinstance(obj, TestService)
+        assert TestService.received_context is not None
+        assert TestService.received_context.manager is manager_with_folder
+        assert TestService.received_context.path == "services.api"
 
     def test_folder_is_cached(self, manager_with_folder):
         """GPConfigFolder instances are cached."""

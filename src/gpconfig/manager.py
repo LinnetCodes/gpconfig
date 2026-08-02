@@ -10,10 +10,11 @@ import yaml
 if TYPE_CHECKING:
     from gpconfig.config import GPConfig
 
-from gpconfig.configurable import GPConfigurable
+from gpconfig.configurable import GPConfigurable, GPConfigurableContext
 from gpconfig.exceptions import (
     ConfigFolderError,
     ConfigNotFoundError,
+    ConfigurableConstructionError,
     ConfigValidationError,
     IllegalPathError,
     RegistrationError,
@@ -473,6 +474,12 @@ class GPConfigManager:
 
         raise ConfigNotFoundError(path)
 
+    def _canonical_config_path(self, path: str) -> str:
+        """Return the canonical dotted path of a resolved YAML file."""
+        file_path, _ = self._parse_path(path)
+        relative_path = file_path.relative_to(self._cfg_folder).with_suffix("")
+        return ".".join(relative_path.parts)
+
     def _check_folder_exists(self, path: str) -> tuple[bool, Path]:
         """Check if a folder exists at the given path.
 
@@ -737,7 +744,8 @@ class GPConfigManager:
         1. Loads the config using get_config (auto-detects class from cfg_class_name)
         2. Reads configured_class_name from the config instance
         3. Looks up the configurable class in _configurable_classes
-        4. Creates a new instance (no caching)
+        4. Constructs the instance via from_config() with a GPConfigurableContext
+           (no caching; a fresh instance is returned each call)
 
         Args:
             path: Config path (e.g., "database" or "services.api").
@@ -748,6 +756,8 @@ class GPConfigManager:
         Raises:
             RegistrationError: If the configured_class_name is missing or not registered.
             ConfigNotFoundError: If the config path doesn't exist.
+            ConfigurableConstructionError: If from_config() returns an object that is
+                not an instance of the registered configurable class.
         """
         # Load the config (will auto-detect class from cfg_class_name)
         # Use _force_file=True to ensure we get file even when folder exists
@@ -778,7 +788,18 @@ class GPConfigManager:
             )
 
         configurable_cls = self._configurable_classes[class_name]
-        return configurable_cls(config)
+        canonical_path = self._canonical_config_path(path)
+        context = GPConfigurableContext(manager=self, path=canonical_path)
+        result = configurable_cls.from_config(config, context=context)
+
+        if not isinstance(result, configurable_cls):
+            raise ConfigurableConstructionError(
+                canonical_path,
+                configurable_cls,
+                type(result),
+            )
+
+        return result
 
     def invalidate_cache(self, path: Optional[str] = None) -> None:
         """Invalidate the config cache.
