@@ -1,7 +1,11 @@
 """Tests for GPConfigurable base class."""
 
+from dataclasses import FrozenInstanceError
+
+import pytest
+
 from gpconfig.config import GPConfig
-from gpconfig.configurable import GPConfigurable
+from gpconfig.configurable import GPConfigurable, GPConfigurableContext
 
 
 class MockConfig(GPConfig):
@@ -55,3 +59,28 @@ class TestGPConfigurableInheritance:
         obj = ChildConfigurable(config)
         assert obj.count == 5
         assert obj.doubled == 10
+
+
+class TestGPConfigurableConstruction:
+    """Test the public configurable construction contracts."""
+
+    def test_context_is_frozen_and_slotted(self):
+        manager = object()
+        context = GPConfigurableContext(manager=manager, path="services.api")
+
+        assert context.manager is manager
+        assert context.path == "services.api"
+        assert not hasattr(context, "__dict__")
+        with pytest.raises(FrozenInstanceError):
+            context.path = "services.worker"
+
+    def test_default_from_config_calls_legacy_constructor(self):
+        config = MockConfig(value="legacy", count=7)
+        context = GPConfigurableContext(manager=object(), path="mock")
+
+        obj = MockConfigurable.from_config(config, context=context)
+
+        assert isinstance(obj, MockConfigurable)
+        assert obj.config is config
+        assert obj.value == "legacy"
+        assert obj.count == 7

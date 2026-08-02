@@ -7,6 +7,7 @@ from gpconfig.exceptions import (
     ConfigReadonlyError,
     RegistrationError,
     ConfigValidationError,
+    ConfigurableConstructionError,
 )
 
 
@@ -75,3 +76,27 @@ class TestConfigValidationError:
         original = ValueError("file: /etc/x.yaml, got str")
         error = ConfigValidationError("some.yaml", original)
         assert "/etc/x.yaml" in str(error)
+
+
+class TestConfigurableConstructionError:
+    """Test construction contract violation details."""
+
+    def test_is_gpconfig_error(self):
+        assert issubclass(ConfigurableConstructionError, GPConfigError)
+
+    def test_stores_contract_details(self):
+        class ExpectedConfigurable:
+            pass
+
+        error = ConfigurableConstructionError(
+            "services.api",
+            ExpectedConfigurable,
+            dict,
+        )
+
+        assert error.path == "services.api"
+        assert error.expected_type is ExpectedConfigurable
+        assert error.actual_type is dict
+        assert "ExpectedConfigurable" in str(error)
+        assert "services.api" in str(error)
+        assert "dict" in str(error)

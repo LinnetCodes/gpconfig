@@ -2,7 +2,7 @@
 """gpconfig - General Purpose Configuration management for Python."""
 
 from gpconfig.config import GPConfig
-from gpconfig.configurable import GPConfigurable
+from gpconfig.configurable import GPConfigurable, GPConfigurableContext
 from gpconfig.manager import GPConfigManager, GPConfigFolder
 from gpconfig.exceptions import (
     GPConfigError,
@@ -12,12 +12,14 @@ from gpconfig.exceptions import (
     ConfigReadonlyError,
     RegistrationError,
     ConfigValidationError,
+    ConfigurableConstructionError,
 )
 
 __all__ = [
     # Core classes
     "GPConfig",
     "GPConfigurable",
+    "GPConfigurableContext",
     "GPConfigManager",
     "GPConfigFolder",
     # Exceptions
@@ -28,6 +30,7 @@ __all__ = [
     "ConfigReadonlyError",
     "RegistrationError",
     "ConfigValidationError",
+    "ConfigurableConstructionError",
 ]
 
 __version__ = "0.3.4"
