@@ -296,10 +296,11 @@ class ConfigValidationError(GPConfigError):
 `ConfigValidationError` is raised by `GPConfigManager.get_config()` (and the YAML loading path it uses) whenever a config file cannot be turned into a valid config object:
 
 - **YAML syntax/parse error** — malformed YAML (bad indentation, unclosed quotes/brackets, tabs). The original error is a `yaml.YAMLError`, whose message carries the file path, line, and column (e.g. `in ".../server.yaml", line 3, column 5`).
+- **Duplicate explicit YAML key** — two keys in the same mapping resolve to the same Python dictionary key, including differently written keys such as `1`/`true` or `null`/`~`. The original error is a `yaml.constructor.ConstructorError`; its message identifies the key, file path, first definition line/column, and repeated line/column. The same key may still appear in separate mappings, and explicit keys may override values supplied through a legal merge key (`<<`).
 - **Non-dict top level** — the YAML parses but its root is a list or scalar instead of a mapping. The message embeds the on-disk file path.
 - **Pydantic validation failure** — the YAML parses to a dict but a field fails schema validation (wrong type, missing required field, or an extra key under `extra="forbid"`). The original error is a Pydantic `ValidationError`, whose message names the offending field.
 
-In all cases the exception message carries the **dotted config path** (on `.path`), the **on-disk file path**, and the underlying error's detail (field name and/or line number) so you can locate the problem precisely.
+In all cases the exception message carries the **dotted config path** (on `.path`), the **on-disk file path**, and the underlying error's detail. Duplicate-key errors additionally carry the readable key plus the first and repeated line/column locations. YAML errors are preserved on both `.original_error` and `.__cause__`, so callers can inspect the original `yaml.YAMLError` without parsing the wrapper's complete message.
 
 ### Attributes
 

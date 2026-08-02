@@ -296,10 +296,11 @@ class ConfigValidationError(GPConfigError):
 当配置文件无法被转成合法的配置对象时，`GPConfigManager.get_config()`（及其 YAML 加载路径）会抛出 `ConfigValidationError`：
 
 - **YAML 语法/解析错误** —— 畸形 YAML（缩进错误、引号/括号未闭合、使用了 Tab 等）。原始错误为 `yaml.YAMLError`，其消息带有文件路径、行号和列号（例如 `in ".../server.yaml", line 3, column 5`）。
+- **YAML 显式键重复** —— 同一个 mapping 中的两个键解析成相同的 Python 字典键，包括 `1`/`true`、`null`/`~` 等写法不同但解析结果相等的键。原始错误为 `yaml.constructor.ConstructorError`；其消息会指出重复键、文件路径、首次定义的行列号，以及重复定义的行列号。同名键仍可分别出现在不同 mapping 中，显式键也仍可覆盖合法 merge key（`<<`）提供的值。
 - **顶层非字典** —— YAML 能解析，但根节点是列表或标量而非映射。消息中嵌入磁盘上的文件路径。
 - **Pydantic 校验失败** —— YAML 解析成字典，但某字段未通过 schema 校验（类型错误、缺少必填字段、或在 `extra="forbid"` 下出现多余字段）。原始错误为 Pydantic 的 `ValidationError`，其消息会指出出错的字段名。
 
-无论哪种情况，异常消息都携带**点分配置路径**（`.path`）、**磁盘上的文件路径**，以及底层错误的细节（字段名和/或行号），方便你精确定位问题。
+无论哪种情况，异常消息都携带**点分配置路径**（`.path`）、**磁盘上的文件路径**，以及底层错误的详细信息。重复键错误还会携带可读的键名、首次定义的行列号和重复定义的行列号。YAML 错误会同时保存在 `.original_error` 与 `.__cause__` 上，调用方无需解析包装异常的完整文本即可检查原始 `yaml.YAMLError`。
 
 ### 属性
 

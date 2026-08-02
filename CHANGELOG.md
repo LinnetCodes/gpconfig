@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-08-02
+
+**Duplicate YAML key validation bugfix release.** gpconfig now fails early
+instead of silently accepting mappings whose later key overwrites an earlier
+key during PyYAML construction. Public loading APIs and exception types remain
+unchanged.
+
+### Fixed
+- All mappings loaded through `GPConfigManager._load_yaml_dict()` now reject duplicate explicit keys before conversion to `dict`, including nested mappings, mappings inside lists, `global_env.yaml`, Unicode keys, and differently written keys that resolve to equal Python values.
+- Duplicate-key failures surface as `ConfigValidationError` chained from `yaml.constructor.ConstructorError`; diagnostics include the file path, readable key, first definition line/column, and repeated line/column.
+- The private loader remains a `yaml.SafeLoader` subclass and preserves legal merge-key overrides, recursive aliases, empty/comment-only files, non-mapping validation, and existing valid YAML results.
+
+### Documentation
+- Documented duplicate-key validation and its exception-chain contract in the English and Chinese exception and manager references.
+
 ## [0.3.4] - 2026-07-14
 
 **Error-message enhancement release.** No public API or behaviour changes — this
@@ -55,6 +70,7 @@ and documentation completeness. See the sections below for details.
 - Documented the read-only `global_env` contract (`MappingProxyType`, mutation errors, `dict(...)` copy) in both EN and ZH manager references.
 - Documented the `default_cfg_path` folder-path contract and `__init_subclass__` fail-early validation in both EN and ZH GPConfig references.
 
-[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.4...HEAD
+[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.5...HEAD
+[0.3.5]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.4...version-0.3.5
 [0.3.4]: https://github.com/LinnetCodes/gpconfig/releases/tag/version-0.3.4
 [0.3.3]: https://github.com/LinnetCodes/gpconfig/releases/tag/version-0.3.3

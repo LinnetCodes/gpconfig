@@ -318,7 +318,7 @@ def get_config(
 **抛出：**
 - 当路径格式错误或逃逸出 `cfg_folder` 时抛出 `IllegalPathError`。
 - 当格式正确的路径无法解析到已存在的文件或键时抛出 `ConfigNotFoundError`。
-- 当 YAML 文件解析失败（语法错误、顶层非字典）或未通过 Pydantic 校验时抛出 `ConfigValidationError`。消息携带点分配置路径、磁盘上的文件路径以及出错字段/行号；底层错误存放在 `.original_error`。
+- 当 YAML 文件存在语法错误、同一个 mapping 中包含重复显式键、顶层不是字典，或未通过 Pydantic 校验时抛出 `ConfigValidationError`。重复键诊断包含键名、磁盘文件路径，以及首次/重复定义的行列号；底层 YAML 错误同时保存在 `.original_error` 和 `.__cause__` 上。
 
 **示例：**
 
