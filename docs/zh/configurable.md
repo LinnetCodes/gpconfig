@@ -232,7 +232,7 @@ class MyConfigurable(GPConfigurable):
 建议为 config 参数添加类型提示以获得更好的 IDE 支持：
 
 ```python
-class Database(GPConfigable):
+class Database(GPConfigurable):
     def __init__(self, config: DatabaseConfig) -> None:  # 具体类型
         super().__init__(config)
         self.host = config.host  # IDE 可以自动补全

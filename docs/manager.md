@@ -314,6 +314,7 @@ def get_config(
 | `config_cls` | `Type[T] \| None` | Optional config class |
 
 **Returns:**
+- If the path resolves to a folder (and no `config_cls` is given and there is no matching file), returns a `GPConfigFolder` for that subfolder. When both a folder and a `.yaml` file match, the folder wins unless `config_cls` is passed.
 - If `config_cls` is specified or auto-detected, returns a config object instance
 - If path points to a specific key, returns that key's value
 - Otherwise returns the raw dictionary
