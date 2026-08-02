@@ -185,6 +185,24 @@ class TestRegisterConfigurableClassSingleParam:
 
         assert "already registered" in str(exc_info.value).lower()
 
+    def test_register_non_class_raises_without_mutating_registry(self):
+        with pytest.raises(RegistrationError) as exc_info:
+            GPConfigManager.register_configurable_class(object())
+
+        assert "GPConfigurable subclass" in str(exc_info.value)
+        assert GPConfigManager._configurable_classes == {}
+
+    def test_register_non_subclass_raises_without_mutating_registry(self):
+        class DuckTypedDatabase:
+            def __init__(self, config: DatabaseConfig) -> None:
+                self.config = config
+
+        with pytest.raises(RegistrationError) as exc_info:
+            GPConfigManager.register_configurable_class(DuckTypedDatabase)
+
+        assert "GPConfigurable subclass" in str(exc_info.value)
+        assert GPConfigManager._configurable_classes == {}
+
 
 class TestConfigurableRegistryRemoved:
     """Test that _configurable_registry is removed."""

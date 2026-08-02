@@ -10,6 +10,7 @@ import yaml
 if TYPE_CHECKING:
     from gpconfig.config import GPConfig
 
+from gpconfig.configurable import GPConfigurable
 from gpconfig.exceptions import (
     ConfigFolderError,
     ConfigNotFoundError,
@@ -107,7 +108,7 @@ class GPConfigManager:
     # Class-level registry: cfg_class_name -> GPConfig subclass
     _config_classes: dict[str, Type[Any]] = {}
     # Class-level registry: configurable class name -> GPConfigurable subclass
-    _configurable_classes: dict[str, Type[Any]] = {}
+    _configurable_classes: dict[str, type[GPConfigurable]] = {}
 
     def __init__(self, project_name: str, cfg_folder: Optional[Path | str] = None):
         """Initialize GPConfigManager.
@@ -685,26 +686,34 @@ class GPConfigManager:
         cls._config_classes[cfg_class_name] = config_cls
 
     @classmethod
-    def register_configurable_class(cls, configurable_cls: Type[Any]) -> None:
+    def register_configurable_class(
+        cls,
+        configurable_cls: type[GPConfigurable],
+    ) -> None:
         """Register a GPConfigurable subclass by its class name.
-
-        This method registers configurable classes that can be instantiated
-        from config files that specify configured_class_name.
 
         Args:
             configurable_cls: The GPConfigurable subclass to register.
 
         Raises:
-            RegistrationError: If a different class with the same name is already registered.
+            RegistrationError: If configurable_cls is not a GPConfigurable
+                subclass, or if a different class has the same name.
         """
+        if not isinstance(configurable_cls, type) or not issubclass(
+            configurable_cls, GPConfigurable
+        ):
+            raise RegistrationError(
+                "Configurable class must be a GPConfigurable subclass, "
+                f"got {configurable_cls!r}"
+            )
+
         class_name = configurable_cls.__name__
         if class_name in cls._configurable_classes:
-            # Idempotent: allow re-registration of same class
             if cls._configurable_classes[class_name] is configurable_cls:
                 return
             raise RegistrationError(
                 f"Configurable class name '{class_name}' is already registered "
-                f"with a different class"
+                "with a different class"
             )
         cls._configurable_classes[class_name] = configurable_cls
 
