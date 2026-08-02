@@ -7,6 +7,8 @@ TOCTOU-safe file reading (review findings 2.1 and 4.1).
 import pytest
 from pathlib import Path
 
+import yaml
+
 from gpconfig.manager import GPConfigManager
 from gpconfig.exceptions import ConfigNotFoundError, ConfigValidationError
 
@@ -108,6 +110,186 @@ class TestLoadYamlDictDirect:
             manager.get_config("broken")
         assert exc_info.value.path == "broken"
         assert str(broken) in str(exc_info.value)
+
+
+class TestDuplicateYamlKeys:
+    """Reject duplicate explicit keys without changing legal YAML behavior."""
+
+    @pytest.fixture
+    def manager(self, tmp_path: Path) -> GPConfigManager:
+        """Create a manager whose global environment is valid."""
+        (tmp_path / "global_env.yaml").write_text(
+            "debug: true\n", encoding="utf-8"
+        )
+        return GPConfigManager("testproject", cfg_folder=tmp_path)
+
+    def test_duplicate_top_level_key_reports_both_locations(
+        self, manager: GPConfigManager, tmp_path: Path
+    ):
+        """Duplicate keys report the file, key, and both source locations."""
+        config_file = tmp_path / "portfolio.yaml"
+        config_file.write_text(
+            "weight_mode: none\nweight_mode: explicit\n", encoding="utf-8"
+        )
+
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager._load_yaml_dict(config_file, "portfolio")
+
+        error = exc_info.value
+        assert isinstance(error.original_error, yaml.YAMLError)
+        assert error.__cause__ is error.original_error
+        message = str(error)
+        assert str(config_file) in message
+        assert "'weight_mode'" in message
+        assert "first defined here" in message
+        assert "line 1, column 1" in message
+        assert "repeated here" in message
+        assert "line 2, column 1" in message
+
+    @pytest.mark.parametrize(
+        ("content", "duplicate_key"),
+        [
+            (
+                "portfolio:\n"
+                "  weight_mode: none\n"
+                "  weight_mode: explicit\n",
+                "weight_mode",
+            ),
+            (
+                "portfolio:\n"
+                "  components:\n"
+                "    - symbol: 600000.XSHG\n"
+                "      symbol: 000001.XSHE\n",
+                "symbol",
+            ),
+        ],
+        ids=["nested-mapping", "mapping-in-list"],
+    )
+    def test_duplicate_nested_keys_are_rejected(
+        self,
+        manager: GPConfigManager,
+        tmp_path: Path,
+        content: str,
+        duplicate_key: str,
+    ):
+        """Mappings at arbitrary nesting depth use the duplicate check."""
+        config_file = tmp_path / "nested.yaml"
+        config_file.write_text(content, encoding="utf-8")
+
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager._load_yaml_dict(config_file, "nested")
+
+        assert duplicate_key in str(exc_info.value)
+
+    def test_duplicate_global_env_key_is_rejected(self, tmp_path: Path):
+        """Manager initialization validates duplicate keys in global_env.yaml."""
+        global_env_file = tmp_path / "global_env.yaml"
+        global_env_file.write_text(
+            "mode: development\nmode: production\n", encoding="utf-8"
+        )
+
+        with pytest.raises(ConfigValidationError) as exc_info:
+            GPConfigManager("testproject", cfg_folder=tmp_path)
+
+        error = exc_info.value
+        assert error.path == str(global_env_file)
+        assert str(global_env_file) in str(error)
+        assert isinstance(error.__cause__, yaml.YAMLError)
+
+    def test_duplicate_unicode_key_is_rejected(
+        self, manager: GPConfigManager, tmp_path: Path
+    ):
+        """Unicode duplicate keys remain readable in the diagnostic."""
+        config_file = tmp_path / "unicode.yaml"
+        config_file.write_text("名称: 第一个\n名称: 第二个\n", encoding="utf-8")
+
+        with pytest.raises(ConfigValidationError) as exc_info:
+            manager._load_yaml_dict(config_file, "unicode")
+
+        assert "名称" in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "1: integer\ntrue: boolean\n",
+            "null: first\n~: second\n",
+        ],
+        ids=["integer-and-boolean", "null-spellings"],
+    )
+    def test_resolved_equal_keys_are_rejected(
+        self, manager: GPConfigManager, tmp_path: Path, content: str
+    ):
+        """Different source spellings that become equal dict keys are duplicates."""
+        config_file = tmp_path / "resolved-equal.yaml"
+        config_file.write_text(content, encoding="utf-8")
+
+        with pytest.raises(ConfigValidationError):
+            manager._load_yaml_dict(config_file, "resolved-equal")
+
+    def test_same_key_in_different_mappings_is_allowed(
+        self, manager: GPConfigManager, tmp_path: Path
+    ):
+        """Duplicate detection is scoped to one mapping node."""
+        config_file = tmp_path / "separate.yaml"
+        config_file.write_text(
+            "portfolio_a:\n"
+            "  weight_mode: none\n"
+            "portfolio_b:\n"
+            "  weight_mode: explicit\n",
+            encoding="utf-8",
+        )
+
+        result = manager._load_yaml_dict(config_file, "separate")
+
+        assert result == {
+            "portfolio_a": {"weight_mode": "none"},
+            "portfolio_b": {"weight_mode": "explicit"},
+        }
+
+    def test_merge_key_explicit_override_is_preserved(
+        self, manager: GPConfigManager, tmp_path: Path
+    ):
+        """An explicit key may legally override a merged default."""
+        config_file = tmp_path / "merge.yaml"
+        config_file.write_text(
+            "defaults: &defaults\n"
+            "  host: localhost\n"
+            "  port: 5432\n"
+            "service:\n"
+            "  <<: *defaults\n"
+            "  port: 6432\n",
+            encoding="utf-8",
+        )
+
+        result = manager._load_yaml_dict(config_file, "merge")
+
+        assert result == {
+            "defaults": {"host": "localhost", "port": 5432},
+            "service": {"host": "localhost", "port": 6432},
+        }
+
+    def test_recursive_alias_mapping_is_preserved(
+        self, manager: GPConfigManager, tmp_path: Path
+    ):
+        """The SafeLoader generator still supports recursive aliases."""
+        config_file = tmp_path / "recursive.yaml"
+        config_file.write_text(
+            "root: &root\n"
+            "  name: recursive\n"
+            "  self: *root\n",
+            encoding="utf-8",
+        )
+
+        result = manager._load_yaml_dict(config_file, "recursive")
+
+        root = result["root"]
+        assert root["self"] is root
+
+    def test_global_pyyaml_safe_loader_is_unchanged(self):
+        """The private loader does not mutate yaml.SafeLoader registrations."""
+        result = yaml.safe_load("key: first\nkey: second\n")
+
+        assert result == {"key": "second"}
 
 
 class TestGetConfigYamlTypeValidation:

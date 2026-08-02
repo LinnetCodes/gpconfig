@@ -10,6 +10,7 @@ import yaml
 if TYPE_CHECKING:
     from gpconfig.config import GPConfig
 
+from gpconfig._yaml import load_yaml
 from gpconfig.exceptions import (
     ConfigFolderError,
     ConfigNotFoundError,
@@ -284,12 +285,13 @@ class GPConfigManager:
         Raises:
             ConfigNotFoundError: If the file does not exist or cannot be opened
                                  (e.g. deleted between exists() check and open).
-            ConfigValidationError: If the top-level YAML value is not a dict
-                                   (e.g. a list or scalar).
+            ConfigValidationError: If YAML parsing fails, a mapping contains
+                duplicate explicit keys, or the top-level YAML value is not a
+                dict (e.g. a list or scalar).
         """
         try:
             with open(file_path, "r", encoding="utf-8") as f:
-                raw_data = yaml.safe_load(f)
+                raw_data = load_yaml(f)
         except FileNotFoundError as e:
             raise ConfigNotFoundError(
                 path_for_error, f"File vanished during read: {file_path}"
