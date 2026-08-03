@@ -12,6 +12,7 @@ from gpconfig import (
     IllegalPathError,
     ConfigReadonlyError,
     RegistrationError,
+    ConfigurableConstructionError,
     ConfigValidationError,
 )
 ```
@@ -25,6 +26,7 @@ GPConfigError (base class)
 ├── IllegalPathError
 ├── ConfigReadonlyError
 ├── RegistrationError
+├── ConfigurableConstructionError
 └── ConfigValidationError
 ```
 
@@ -275,6 +277,93 @@ try:
 except RegistrationError as e:
     print(f"Registration error: {e}")
     # Output: Config class name 'MyConfig' is already registered with a different class
+```
+
+## ConfigurableConstructionError
+
+Raised when a configurable object's construction hook returns an invalid object type.
+
+```python
+class ConfigurableConstructionError(GPConfigError):
+    """Raised when a construction hook returns an invalid object type."""
+
+    def __init__(
+        self,
+        path: str,
+        expected_type: type,
+        actual_type: type,
+    ):
+        self.path = path
+        self.expected_type = expected_type
+        self.actual_type = actual_type
+```
+
+### Trigger Conditions
+
+`ConfigurableConstructionError` is raised by `GPConfigManager.get_object()` (and `GPConfigFolder.get_object()`, which delegates to it) when a configurable class's `from_config()` hook returns a value that is **not** an instance of the registered configurable class:
+
+- The hook returned an unrelated type (e.g. a `dict`, `None`, or a plain object).
+- The hook returned an instance of a class that is neither the registered class nor a subclass of it.
+
+Returning an instance of a **subclass** of the registered class is allowed and does not raise. Only a return value that fails `isinstance(result, configurable_cls)` triggers this error.
+
+### Attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `path` | `str` | Canonical dotted path of the source YAML file used for construction (no `.yaml` suffix, no project-name prefix) |
+| `expected_type` | `type` | The registered configurable class that should have been returned |
+| `actual_type` | `type` | The type actually returned by the construction hook |
+
+### Raised By
+
+`GPConfigManager.get_object()` and `GPConfigFolder.get_object()`, after invoking `configurable_cls.from_config(config, context=context)`. Exceptions raised *inside* the hook (business errors, or `TypeError` from an incompatible hook signature) propagate unchanged and do **not** become `ConfigurableConstructionError` — this error is specifically for a wrong return *type*.
+
+### Examples
+
+```python
+from typing import ClassVar
+
+from gpconfig import (
+    GPConfig,
+    GPConfigurable,
+    GPConfigManager,
+    ConfigurableConstructionError,
+)
+from gpconfig.configurable import GPConfigurableContext
+
+
+class WorkerConfig(GPConfig):
+    cfg_class_name: ClassVar[str] = "WorkerConfig"
+    worker_name: str
+
+
+class Worker(GPConfigurable):
+    @classmethod
+    def from_config(
+        cls,
+        config: WorkerConfig,
+        *,
+        context: GPConfigurableContext,
+    ) -> "Worker":
+        # BUG: returns a dict instead of a Worker instance
+        return {"worker_name": config.worker_name}
+
+
+# Assume worker.yaml has configured_class_name: "Worker"
+GPConfigManager.register_config_class(WorkerConfig)
+GPConfigManager.register_configurable_class(Worker)
+
+manager = GPConfigManager("myapp")
+
+try:
+    worker = manager.get_object("worker")
+except ConfigurableConstructionError as e:
+    print(f"Wrong type from {e.path}")        # e.path == "worker"
+    print(f"Expected: {e.expected_type.__name__}")  # "Worker"
+    print(f"Got: {e.actual_type.__name__}")         # "dict"
+    print(e)
+    # Configurable 'Worker' from path 'worker' returned dict; expected an instance of Worker
 ```
 
 ## ConfigValidationError
