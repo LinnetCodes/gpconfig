@@ -80,7 +80,7 @@ class DatabaseConfig(GPConfig):
 
 class WorkerConfig(GPConfig):
     cfg_class_name: ClassVar[str] = "WorkerConfig"
-    name: str
+    worker_name: str
     concurrency: int = 4
 
 
@@ -89,7 +89,7 @@ class Worker(GPConfigurable):
 
     def __init__(self, config: WorkerConfig) -> None:
         super().__init__(config)
-        self.name = config.name
+        self.worker_name = config.worker_name
         self.concurrency = config.concurrency
         self.database = None  # filled in by from_config
 
@@ -127,7 +127,7 @@ def main(tmp_dir: str) -> None:
         f.write(
             'cfg_class_name: "WorkerConfig"\n'
             'configured_class_name: "Worker"\n'
-            "name: ingest\n"
+            "worker_name: ingest\n"
             "concurrency: 8\n"
         )
 
@@ -141,7 +141,7 @@ def main(tmp_dir: str) -> None:
 
     # Assertions that the docs will claim:
     assert isinstance(worker, Worker)
-    assert worker.name == "ingest"
+    assert worker.worker_name == "ingest"
     assert worker.concurrency == 8
     assert worker.database.host == "db.internal"
     assert worker.database.port == 5432
@@ -269,14 +269,14 @@ class DatabaseConfig(GPConfig):
 
 class WorkerConfig(GPConfig):
     cfg_class_name: ClassVar[str] = "WorkerConfig"
-    name: str
+    worker_name: str
     concurrency: int = 4
 
 
 class Worker(GPConfigurable):
     def __init__(self, config: WorkerConfig) -> None:
         super().__init__(config)
-        self.name = config.name
+        self.worker_name = config.worker_name
         self.concurrency = config.concurrency
         self.database = None
 
@@ -306,7 +306,7 @@ port: 5432
 # worker.yaml
 cfg_class_name: "WorkerConfig"
 configured_class_name: "Worker"
-name: ingest
+worker_name: ingest
 concurrency: 8
 ```
 
@@ -317,7 +317,7 @@ GPConfigManager.register_configurable_class(Worker)
 
 manager = GPConfigManager("myapp")
 worker = manager.get_object("worker")
-print(worker.name)              # ingest
+print(worker.worker_name)        # ingest
 print(worker.database.host)     # db.internal
 ```
 
@@ -424,14 +424,14 @@ class DatabaseConfig(GPConfig):
 
 class WorkerConfig(GPConfig):
     cfg_class_name: ClassVar[str] = "WorkerConfig"
-    name: str
+    worker_name: str
     concurrency: int = 4
 
 
 class Worker(GPConfigurable):
     def __init__(self, config: WorkerConfig) -> None:
         super().__init__(config)
-        self.name = config.name
+        self.worker_name = config.worker_name
         self.concurrency = config.concurrency
         self.database = None
 
@@ -461,7 +461,7 @@ port: 5432
 # worker.yaml
 cfg_class_name: "WorkerConfig"
 configured_class_name: "Worker"
-name: ingest
+worker_name: ingest
 concurrency: 8
 ```
 
@@ -472,7 +472,7 @@ GPConfigManager.register_configurable_class(Worker)
 
 manager = GPConfigManager("myapp")
 worker = manager.get_object("worker")
-print(worker.name)              # ingest
+print(worker.worker_name)        # ingest
 print(worker.database.host)     # db.internal
 ```
 
