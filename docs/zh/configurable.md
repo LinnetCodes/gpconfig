@@ -111,6 +111,149 @@ cache = manager.get_object("cache")
 print(cache.config.ttl)  # 访问配置中的字段
 ```
 
+## 上下文感知构造
+
+### 何时重写 `from_config()`
+
+大多数子类**不需要**重写任何东西。默认的
+`GPConfigurable.from_config(config, *, context)` 只是调用 `cls(config)`，所以标准的
+单参数子类无需任何改动即可继续工作：
+
+```python
+class Database(GPConfigurable):
+    def __init__(self, config: DatabaseConfig) -> None:
+        super().__init__(config)   # 无需其它代码
+```
+
+**仅当**对象在构造时需要引用同一配置树中的其它配置时，才需要重写 `from_config()`。
+`context` 参数是对象访问构造它的 manager 的唯一途径——按设计 `GPConfig` 不携带 manager 字段。
+
+### 构造钩子与上下文
+
+```python
+from gpconfig import GPConfigurable, GPConfigurableContext
+
+
+class Worker(GPConfigurable):
+    @classmethod
+    def from_config(
+        cls,
+        config: WorkerConfig,
+        *,
+        context: GPConfigurableContext,
+    ) -> "Worker":
+        # context.manager：接收本次 get_object() 调用的 GPConfigManager。
+        # context.path：   本对象 YAML 文件的规范点路径，
+        #                  去掉了 .yaml 后缀和可选的项目名前缀
+        #                  （例如 "services.api" 和 "myapp.services.api"
+        #                  都得到 context.path == "services.api"）。
+        return cls(config)
+```
+
+`GPConfigurableContext` 是一个 frozen、slotted 的值对象，只有两个字段：
+
+| 字段      | 含义                                                                                |
+|-----------|-------------------------------------------------------------------------------------|
+| `manager` | 接收本次 `get_object()` 请求的 `GPConfigManager`。                                  |
+| `path`    | 源 YAML 文件的规范点路径（不含 `.yaml`，不含项目名前缀）。                          |
+
+### 示例：引用另一份配置
+
+一个需要数据库配置的 `Worker`。它通过 `context.manager.get_config(...)` 读取数据库
+配置的**数据**，而不会构造 `Database` 对象：
+
+```python
+from typing import ClassVar
+
+from gpconfig import GPConfig, GPConfigurable, GPConfigManager
+from gpconfig.configurable import GPConfigurableContext
+
+
+class DatabaseConfig(GPConfig):
+    cfg_class_name: ClassVar[str] = "DatabaseConfig"
+    host: str
+    port: int = 5432
+
+
+class WorkerConfig(GPConfig):
+    cfg_class_name: ClassVar[str] = "WorkerConfig"
+    worker_name: str
+    concurrency: int = 4
+
+
+class Worker(GPConfigurable):
+    def __init__(self, config: WorkerConfig) -> None:
+        super().__init__(config)
+        self.worker_name = config.worker_name
+        self.concurrency = config.concurrency
+        self.database = None
+
+    @classmethod
+    def from_config(
+        cls,
+        config: WorkerConfig,
+        *,
+        context: GPConfigurableContext,
+    ) -> "Worker":
+        db_config = context.manager.get_config("database", DatabaseConfig)
+        obj = cls(config)
+        obj.database = db_config
+        return obj
+```
+
+**YAML 文件：**
+
+```yaml
+# database.yaml
+cfg_class_name: "DatabaseConfig"
+host: db.internal
+port: 5432
+```
+
+```yaml
+# worker.yaml
+cfg_class_name: "WorkerConfig"
+configured_class_name: "Worker"
+worker_name: ingest
+concurrency: 8
+```
+
+```python
+GPConfigManager.register_config_class(DatabaseConfig)
+GPConfigManager.register_config_class(WorkerConfig)
+GPConfigManager.register_configurable_class(Worker)
+
+manager = GPConfigManager("myapp")
+worker = manager.get_object("worker")
+print(worker.worker_name)        # ingest
+print(worker.database.host)     # db.internal
+```
+
+### 在钩子中选择 `get_config` 还是 `get_object`
+
+钩子里对 manager 的两种调用行为差别很大：
+
+| 调用                                    | 会调用 `from_config` 吗 | 会递归吗 | 是否缓存                          |
+|-----------------------------------------|:-----------------------:|:--------:|-----------------------------------|
+| `context.manager.get_config(path, Cfg)` | 否                      | 否       | 是——配置数据，按文件缓存          |
+| `context.manager.get_object(path)`      | 是                      | 是       | 否——每次调用都返回新对象          |
+
+需要读取另一份配置的**数据**时用 `get_config`。只有需要另一个完整构造的**对象**时才用
+`get_object`（并接受它会递归走它自己的 `from_config`）。
+
+### 重要约束
+
+- 钩子**必须**返回已注册可配置类的实例（也允许返回其子类的实例）。其它返回值会触发
+  `ConfigurableConstructionError`。
+- 钩子抛出的异常——包括签名不兼容导致的 `TypeError`——会原样传播。钩子失败后 manager
+  绝不会回退重试旧式 `cls(config)` 构造器。
+- `get_object()` **不**缓存对象；每次调用都返回新实例。`get_config()` **会**按文件缓存配置数据。
+- **循环引用的检测由调用方负责。** manager 不做循环检测，也不限制深度。如果
+  `get_object("a")` 的钩子调 `get_object("b")`，而 `get_object("b")` 的钩子又调回
+  `get_object("a")`，就会无限递归直到栈溢出。
+
+> 默认的 `from_config()` 保持了标准子类的契约，因此大多数用户无需重写它。
+
 ## 完整示例
 
 ### 多个可配置对象

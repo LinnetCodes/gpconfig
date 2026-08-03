@@ -12,6 +12,7 @@ from gpconfig import (
     IllegalPathError,
     ConfigReadonlyError,
     RegistrationError,
+    ConfigurableConstructionError,
     ConfigValidationError,
 )
 ```
@@ -25,6 +26,7 @@ GPConfigError (基类)
 ├── IllegalPathError
 ├── ConfigReadonlyError
 ├── RegistrationError
+├── ConfigurableConstructionError
 └── ConfigValidationError
 ```
 
@@ -275,6 +277,93 @@ try:
 except RegistrationError as e:
     print(f"注册错误: {e}")
     # 输出: Config class name 'MyConfig' is already registered with a different class
+```
+
+## ConfigurableConstructionError
+
+可配置对象的构造钩子返回了无效的对象类型时抛出。
+
+```python
+class ConfigurableConstructionError(GPConfigError):
+    """Raised when a construction hook returns an invalid object type."""
+
+    def __init__(
+        self,
+        path: str,
+        expected_type: type,
+        actual_type: type,
+    ):
+        self.path = path
+        self.expected_type = expected_type
+        self.actual_type = actual_type
+```
+
+### 触发场景
+
+`ConfigurableConstructionError` 由 `GPConfigManager.get_object()`（以及委托给它的 `GPConfigFolder.get_object()`）在可配置类的 `from_config()` 钩子返回值**不是**已注册可配置类的实例时抛出：
+
+- 钩子返回了无关类型（例如 `dict`、`None` 或普通对象）。
+- 钩子返回的实例既不是已注册类，也不是其子类。
+
+返回已注册类的**子类**实例是允许的，不会抛出。只有返回值无法通过 `isinstance(result, configurable_cls)` 时才会触发此错误。
+
+### 属性
+
+| 属性 | 类型 | 说明 |
+|-----------|------|-------------|
+| `path` | `str` | 用于构造的源 YAML 文件规范点路径（不含 `.yaml` 后缀，不含项目名前缀） |
+| `expected_type` | `type` | 应当返回的已注册可配置类 |
+| `actual_type` | `type` | 构造钩子实际返回的类型 |
+
+### 由谁抛出
+
+由 `GPConfigManager.get_object()` 和 `GPConfigFolder.get_object()` 在调用 `configurable_cls.from_config(config, context=context)` 之后抛出。**钩子内部**抛出的异常（业务异常，或签名不兼容导致的 `TypeError`）会原样传播，**不会**变成 `ConfigurableConstructionError` —— 此错误专用于返回**类型**错误。
+
+### 示例
+
+```python
+from typing import ClassVar
+
+from gpconfig import (
+    GPConfig,
+    GPConfigurable,
+    GPConfigManager,
+    ConfigurableConstructionError,
+)
+from gpconfig.configurable import GPConfigurableContext
+
+
+class WorkerConfig(GPConfig):
+    cfg_class_name: ClassVar[str] = "WorkerConfig"
+    worker_name: str
+
+
+class Worker(GPConfigurable):
+    @classmethod
+    def from_config(
+        cls,
+        config: WorkerConfig,
+        *,
+        context: GPConfigurableContext,
+    ) -> "Worker":
+        # BUG：返回了一个 dict，而不是 Worker 实例
+        return {"worker_name": config.worker_name}
+
+
+# 假设 worker.yaml 中有 configured_class_name: "Worker"
+GPConfigManager.register_config_class(WorkerConfig)
+GPConfigManager.register_configurable_class(Worker)
+
+manager = GPConfigManager("myapp")
+
+try:
+    worker = manager.get_object("worker")
+except ConfigurableConstructionError as e:
+    print(f"{e.path} 返回了错误类型")        # e.path == "worker"
+    print(f"期望: {e.expected_type.__name__}")    # "Worker"
+    print(f"实际: {e.actual_type.__name__}")      # "dict"
+    print(e)
+    # Configurable 'Worker' from path 'worker' returned dict; expected an instance of Worker
 ```
 
 ## ConfigValidationError

@@ -37,6 +37,12 @@ class TestPublicAPI:
         assert RegistrationError is not None
         assert ConfigValidationError is not None
 
+    def test_export_construction_contracts(self):
+        from gpconfig import ConfigurableConstructionError, GPConfigurableContext
+
+        assert GPConfigurableContext is not None
+        assert ConfigurableConstructionError is not None
+
     def test_all_exports_in_dunder_all(self):
         import gpconfig
 
@@ -50,5 +56,7 @@ class TestPublicAPI:
             "ConfigReadonlyError",
             "RegistrationError",
             "ConfigValidationError",
+            "GPConfigurableContext",
+            "ConfigurableConstructionError",
         }
         assert expected.issubset(set(gpconfig.__all__))

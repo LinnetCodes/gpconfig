@@ -42,6 +42,38 @@ class RegistrationError(GPConfigError):
     pass
 
 
+class ConfigurableConstructionError(GPConfigError):
+    """Raised when a construction hook returns an invalid object type.
+
+    Attributes:
+        path: Canonical dotted path used for object construction.
+        expected_type: Registered configurable class that should be returned.
+        actual_type: Type actually returned by the construction hook.
+    """
+
+    def __init__(
+        self,
+        path: str,
+        expected_type: type,
+        actual_type: type,
+    ) -> None:
+        """Initialize a construction contract error.
+
+        Args:
+            path: Canonical dotted path used for object construction.
+            expected_type: Registered configurable class expected from the hook.
+            actual_type: Type actually returned by the hook.
+        """
+        self.path = path
+        self.expected_type = expected_type
+        self.actual_type = actual_type
+        super().__init__(
+            f"Configurable '{expected_type.__name__}' from path '{path}' returned "
+            f"{actual_type.__name__}; expected an instance of "
+            f"{expected_type.__name__}"
+        )
+
+
 class ConfigValidationError(GPConfigError):
     """Raised when a config file fails validation."""
 

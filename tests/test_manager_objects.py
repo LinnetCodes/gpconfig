@@ -1,13 +1,19 @@
 """Tests for GPConfigManager object registration and creation."""
 
-import pytest
 from pathlib import Path
 from typing import ClassVar
 
+import pytest
+import yaml
+
 from gpconfig.config import GPConfig
-from gpconfig.configurable import GPConfigurable
+from gpconfig.configurable import GPConfigurable, GPConfigurableContext
+from gpconfig.exceptions import (
+    ConfigNotFoundError,
+    ConfigurableConstructionError,
+    RegistrationError,
+)
 from gpconfig.manager import GPConfigManager
-from gpconfig.exceptions import RegistrationError, ConfigNotFoundError
 
 
 class DatabaseConfig(GPConfig):
@@ -24,6 +30,22 @@ class Database(GPConfigurable):
     def __init__(self, config: DatabaseConfig) -> None:
         super().__init__(config)
         self.connection_string = f"postgresql://{config.host}:{config.port}"
+
+
+class ContextAwareDatabase(Database):
+    """Database that records every manager construction context."""
+
+    received_contexts: ClassVar[list[GPConfigurableContext]] = []
+
+    @classmethod
+    def from_config(
+        cls,
+        config: DatabaseConfig,
+        *,
+        context: GPConfigurableContext,
+    ) -> "ContextAwareDatabase":
+        cls.received_contexts.append(context)
+        return cls(config)
 
 
 class CacheConfig(GPConfig):
@@ -44,10 +66,12 @@ class Cache(GPConfigurable):
 
 @pytest.fixture(autouse=True)
 def reset_registry():
-    """Reset class-level registries before each test."""
+    """Reset class-level registries and construction observations."""
     GPConfigManager.reset_registries()
+    ContextAwareDatabase.received_contexts.clear()
     yield
     GPConfigManager.reset_registries()
+    ContextAwareDatabase.received_contexts.clear()
 
 
 @pytest.fixture
@@ -97,6 +121,256 @@ class TestGetObject:
         assert (
             "no registered config class" in error_msg or "not registered" in error_msg
         )
+
+    def test_get_object_passes_original_manager_and_canonical_path(
+        self,
+        manager_with_configs,
+    ):
+        config_file = manager_with_configs.cfg_folder / "database.yaml"
+        config_file.write_text(
+            "cfg_class_name: 'TestObjectsDatabaseConfig'\n"
+            "configured_class_name: 'ContextAwareDatabase'\n"
+            "host: localhost\n"
+            "port: 5432\n",
+            encoding="utf-8",
+        )
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(ContextAwareDatabase)
+
+        first = manager_with_configs.get_object("database")
+        second = manager_with_configs.get_object("testproject.database")
+
+        assert isinstance(first, ContextAwareDatabase)
+        assert isinstance(second, ContextAwareDatabase)
+        assert first is not second
+        assert len(ContextAwareDatabase.received_contexts) == 2
+        assert all(
+            context.manager is manager_with_configs
+            for context in ContextAwareDatabase.received_contexts
+        )
+        assert [
+            context.path for context in ContextAwareDatabase.received_contexts
+        ] == ["database", "database"]
+
+    def test_two_managers_receive_their_own_context(self, tmp_path: Path):
+        managers = []
+        for folder_name, host in (("one", "db-one"), ("two", "db-two")):
+            cfg_folder = tmp_path / folder_name
+            cfg_folder.mkdir()
+            (cfg_folder / "global_env.yaml").write_text(
+                "version: 1.0\n",
+                encoding="utf-8",
+            )
+            (cfg_folder / "database.yaml").write_text(
+                "cfg_class_name: 'TestObjectsDatabaseConfig'\n"
+                "configured_class_name: 'ContextAwareDatabase'\n"
+                f"host: {host}\n"
+                "port: 5432\n",
+                encoding="utf-8",
+            )
+            managers.append(GPConfigManager("testproject", cfg_folder=cfg_folder))
+
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(ContextAwareDatabase)
+
+        first = managers[0].get_object("database")
+        second = managers[1].get_object("database")
+
+        assert first.config.host == "db-one"
+        assert second.config.host == "db-two"
+        assert ContextAwareDatabase.received_contexts[0].manager is managers[0]
+        assert ContextAwareDatabase.received_contexts[1].manager is managers[1]
+
+    def test_hook_loads_related_config_through_same_manager_cache(
+        self,
+        manager_with_configs,
+    ):
+        class RelatedLoadingDatabase(Database):
+            @classmethod
+            def from_config(
+                cls,
+                config: DatabaseConfig,
+                *,
+                context: GPConfigurableContext,
+            ) -> "RelatedLoadingDatabase":
+                obj = cls(config)
+                obj.related = context.manager.get_config("related", DatabaseConfig)
+                obj.related_again = context.manager.get_config(
+                    "related",
+                    DatabaseConfig,
+                )
+                return obj
+
+        (manager_with_configs.cfg_folder / "database.yaml").write_text(
+            "cfg_class_name: 'TestObjectsDatabaseConfig'\n"
+            "configured_class_name: 'RelatedLoadingDatabase'\n"
+            "host: root\n"
+            "port: 5432\n",
+            encoding="utf-8",
+        )
+        (manager_with_configs.cfg_folder / "related.yaml").write_text(
+            "host: dependency\nport: 5433\n",
+            encoding="utf-8",
+        )
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(RelatedLoadingDatabase)
+
+        obj = manager_with_configs.get_object("database")
+
+        assert obj.related.host == "dependency"
+        assert obj.related is obj.related_again
+
+    def test_hook_exception_propagates_without_constructor_retry(
+        self,
+        manager_with_configs,
+    ):
+        sentinel = RuntimeError("construction failed")
+
+        class ExplodingDatabase(Database):
+            constructor_calls: ClassVar[int] = 0
+
+            def __init__(self, config: DatabaseConfig) -> None:
+                type(self).constructor_calls += 1
+                super().__init__(config)
+
+            @classmethod
+            def from_config(
+                cls,
+                config: DatabaseConfig,
+                *,
+                context: GPConfigurableContext,
+            ) -> "ExplodingDatabase":
+                raise sentinel
+
+        (manager_with_configs.cfg_folder / "database.yaml").write_text(
+            "cfg_class_name: 'TestObjectsDatabaseConfig'\n"
+            "configured_class_name: 'ExplodingDatabase'\n"
+            "host: localhost\nport: 5432\n",
+            encoding="utf-8",
+        )
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(ExplodingDatabase)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            manager_with_configs.get_object("database")
+
+        assert exc_info.value is sentinel
+        assert ExplodingDatabase.constructor_calls == 0
+
+    def test_incompatible_hook_signature_propagates_type_error_without_retry(
+        self,
+        manager_with_configs,
+    ):
+        class IncompatibleFactoryDatabase(Database):
+            constructor_calls: ClassVar[int] = 0
+
+            def __init__(self, config: DatabaseConfig) -> None:
+                type(self).constructor_calls += 1
+                super().__init__(config)
+
+            @classmethod
+            def from_config(
+                cls,
+                config: DatabaseConfig,
+            ) -> "IncompatibleFactoryDatabase":
+                return cls(config)
+
+        (manager_with_configs.cfg_folder / "database.yaml").write_text(
+            "cfg_class_name: 'TestObjectsDatabaseConfig'\n"
+            "configured_class_name: 'IncompatibleFactoryDatabase'\n"
+            "host: localhost\nport: 5432\n",
+            encoding="utf-8",
+        )
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(IncompatibleFactoryDatabase)
+
+        with pytest.raises(TypeError, match="context"):
+            manager_with_configs.get_object("database")
+
+        assert IncompatibleFactoryDatabase.constructor_calls == 0
+
+    def test_wrong_hook_result_raises_construction_error(
+        self,
+        manager_with_configs,
+    ):
+        class WrongReturnDatabase(Database):
+            @classmethod
+            def from_config(
+                cls,
+                config: DatabaseConfig,
+                *,
+                context: GPConfigurableContext,
+            ) -> object:
+                return {}
+
+        (manager_with_configs.cfg_folder / "database.yaml").write_text(
+            "cfg_class_name: 'TestObjectsDatabaseConfig'\n"
+            "configured_class_name: 'WrongReturnDatabase'\n"
+            "host: localhost\nport: 5432\n",
+            encoding="utf-8",
+        )
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(WrongReturnDatabase)
+
+        with pytest.raises(ConfigurableConstructionError) as exc_info:
+            manager_with_configs.get_object("testproject.database")
+
+        assert exc_info.value.path == "database"
+        assert exc_info.value.expected_type is WrongReturnDatabase
+        assert exc_info.value.actual_type is dict
+
+    def test_hook_may_return_registered_class_subclass(
+        self,
+        manager_with_configs,
+    ):
+        class RegisteredDatabase(Database):
+            @classmethod
+            def from_config(
+                cls,
+                config: DatabaseConfig,
+                *,
+                context: GPConfigurableContext,
+            ) -> "RegisteredDatabase":
+                return DerivedDatabase(config)
+
+        class DerivedDatabase(RegisteredDatabase):
+            pass
+
+        (manager_with_configs.cfg_folder / "database.yaml").write_text(
+            "cfg_class_name: 'TestObjectsDatabaseConfig'\n"
+            "configured_class_name: 'RegisteredDatabase'\n"
+            "host: localhost\nport: 5432\n",
+            encoding="utf-8",
+        )
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(RegisteredDatabase)
+
+        obj = manager_with_configs.get_object("database")
+
+        assert isinstance(obj, DerivedDatabase)
+
+    def test_context_is_not_attached_to_config_or_saved_yaml(
+        self,
+        manager_with_configs,
+    ):
+        (manager_with_configs.cfg_folder / "database.yaml").write_text(
+            "cfg_class_name: 'TestObjectsDatabaseConfig'\n"
+            "configured_class_name: 'ContextAwareDatabase'\n"
+            "host: localhost\nport: 5432\n",
+            encoding="utf-8",
+        )
+        GPConfigManager.register_config_class(DatabaseConfig)
+        GPConfigManager.register_configurable_class(ContextAwareDatabase)
+
+        obj = manager_with_configs.get_object("database")
+
+        assert not hasattr(obj.config, "manager")
+        assert not hasattr(obj.config, "context")
+        assert not hasattr(obj.config, "path")
+        obj.config.save()
+        with open(obj.config.cfg_file_path, "r", encoding="utf-8") as config_file:
+            saved = yaml.safe_load(config_file)
+        assert {"manager", "context", "path"}.isdisjoint(saved)
 
 
 class TestListObjects:
@@ -184,6 +458,24 @@ class TestRegisterConfigurableClassSingleParam:
             GPConfigManager.register_configurable_class(ConflictClass)
 
         assert "already registered" in str(exc_info.value).lower()
+
+    def test_register_non_class_raises_without_mutating_registry(self):
+        with pytest.raises(RegistrationError) as exc_info:
+            GPConfigManager.register_configurable_class(object())
+
+        assert "GPConfigurable subclass" in str(exc_info.value)
+        assert GPConfigManager._configurable_classes == {}
+
+    def test_register_non_subclass_raises_without_mutating_registry(self):
+        class DuckTypedDatabase:
+            def __init__(self, config: DatabaseConfig) -> None:
+                self.config = config
+
+        with pytest.raises(RegistrationError) as exc_info:
+            GPConfigManager.register_configurable_class(DuckTypedDatabase)
+
+        assert "GPConfigurable subclass" in str(exc_info.value)
+        assert GPConfigManager._configurable_classes == {}
 
 
 class TestConfigurableRegistryRemoved:

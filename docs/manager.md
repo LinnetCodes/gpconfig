@@ -384,6 +384,16 @@ port: 5432
 - Config file must contain `configured_class_name` field
 - The class corresponding to `configured_class_name` must be registered via `register_configurable_class()`
 
+Internally, `get_object()` builds a `GPConfigurableContext(manager=self, path=<canonical>)`
+— where `<canonical>` is the source YAML's dotted path with the `.yaml` suffix and any
+project-name prefix stripped — and invokes
+`configurable_cls.from_config(config, context=context)` **exactly once**. The return
+value is validated against the registered class; a non-matching type raises
+`ConfigurableConstructionError`. The default `from_config()` simply calls
+`cls(config)`, so standard subclasses need no changes. To customize construction —
+for example, to load related configs from the same tree — see
+[Context-Aware Construction](configurable.md#context-aware-construction).
+
 ### list_configs()
 
 List all config objects in a folder.

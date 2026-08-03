@@ -11,9 +11,11 @@ if TYPE_CHECKING:
     from gpconfig.config import GPConfig
 
 from gpconfig._yaml import load_yaml
+from gpconfig.configurable import GPConfigurable, GPConfigurableContext
 from gpconfig.exceptions import (
     ConfigFolderError,
     ConfigNotFoundError,
+    ConfigurableConstructionError,
     ConfigValidationError,
     IllegalPathError,
     RegistrationError,
@@ -108,7 +110,7 @@ class GPConfigManager:
     # Class-level registry: cfg_class_name -> GPConfig subclass
     _config_classes: dict[str, Type[Any]] = {}
     # Class-level registry: configurable class name -> GPConfigurable subclass
-    _configurable_classes: dict[str, Type[Any]] = {}
+    _configurable_classes: dict[str, type[GPConfigurable]] = {}
 
     def __init__(self, project_name: str, cfg_folder: Optional[Path | str] = None):
         """Initialize GPConfigManager.
@@ -474,6 +476,12 @@ class GPConfigManager:
 
         raise ConfigNotFoundError(path)
 
+    def _canonical_config_path(self, path: str) -> str:
+        """Return the canonical dotted path of a resolved YAML file."""
+        file_path, _ = self._parse_path(path)
+        relative_path = file_path.relative_to(self._cfg_folder).with_suffix("")
+        return ".".join(relative_path.parts)
+
     def _check_folder_exists(self, path: str) -> tuple[bool, Path]:
         """Check if a folder exists at the given path.
 
@@ -687,26 +695,34 @@ class GPConfigManager:
         cls._config_classes[cfg_class_name] = config_cls
 
     @classmethod
-    def register_configurable_class(cls, configurable_cls: Type[Any]) -> None:
+    def register_configurable_class(
+        cls,
+        configurable_cls: type[GPConfigurable],
+    ) -> None:
         """Register a GPConfigurable subclass by its class name.
-
-        This method registers configurable classes that can be instantiated
-        from config files that specify configured_class_name.
 
         Args:
             configurable_cls: The GPConfigurable subclass to register.
 
         Raises:
-            RegistrationError: If a different class with the same name is already registered.
+            RegistrationError: If configurable_cls is not a GPConfigurable
+                subclass, or if a different class has the same name.
         """
+        if not isinstance(configurable_cls, type) or not issubclass(
+            configurable_cls, GPConfigurable
+        ):
+            raise RegistrationError(
+                "Configurable class must be a GPConfigurable subclass, "
+                f"got {configurable_cls!r}"
+            )
+
         class_name = configurable_cls.__name__
         if class_name in cls._configurable_classes:
-            # Idempotent: allow re-registration of same class
             if cls._configurable_classes[class_name] is configurable_cls:
                 return
             raise RegistrationError(
                 f"Configurable class name '{class_name}' is already registered "
-                f"with a different class"
+                "with a different class"
             )
         cls._configurable_classes[class_name] = configurable_cls
 
@@ -730,7 +746,8 @@ class GPConfigManager:
         1. Loads the config using get_config (auto-detects class from cfg_class_name)
         2. Reads configured_class_name from the config instance
         3. Looks up the configurable class in _configurable_classes
-        4. Creates a new instance (no caching)
+        4. Constructs the instance via from_config() with a GPConfigurableContext
+           (no caching; a fresh instance is returned each call)
 
         Args:
             path: Config path (e.g., "database" or "services.api").
@@ -741,6 +758,8 @@ class GPConfigManager:
         Raises:
             RegistrationError: If the configured_class_name is missing or not registered.
             ConfigNotFoundError: If the config path doesn't exist.
+            ConfigurableConstructionError: If from_config() returns an object that is
+                not an instance of the registered configurable class.
         """
         # Load the config (will auto-detect class from cfg_class_name)
         # Use _force_file=True to ensure we get file even when folder exists
@@ -771,7 +790,18 @@ class GPConfigManager:
             )
 
         configurable_cls = self._configurable_classes[class_name]
-        return configurable_cls(config)
+        canonical_path = self._canonical_config_path(path)
+        context = GPConfigurableContext(manager=self, path=canonical_path)
+        result = configurable_cls.from_config(config, context=context)
+
+        if not isinstance(result, configurable_cls):
+            raise ConfigurableConstructionError(
+                canonical_path,
+                configurable_cls,
+                type(result),
+            )
+
+        return result
 
     def invalidate_cache(self, path: Optional[str] = None) -> None:
         """Invalidate the config cache.
