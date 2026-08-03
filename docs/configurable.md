@@ -232,7 +232,7 @@ class MyConfigurable(GPConfigurable):
 It's recommended to add type hints for the config parameter for better IDE support:
 
 ```python
-class Database(GPConfigable):
+class Database(GPConfigurable):
     def __init__(self, config: DatabaseConfig) -> None:  # Specific type
         super().__init__(config)
         self.host = config.host  # IDE can autocomplete
