@@ -191,10 +191,10 @@ Raised when trying to save a readonly config.
 
 ```python
 class ConfigReadonlyError(GPConfigError):
-    """Raised when trying to modify or save a readonly config."""
+    """Raised when trying to save a readonly config."""
 
     def __init__(self, config_name: str):
-        super().__init__(f"Config '{config_name}' is readonly and cannot be modified")
+        super().__init__(f"Config '{config_name}' is readonly and cannot be saved")
 ```
 
 ### Examples
@@ -219,7 +219,7 @@ try:
     config.save()
 except ConfigReadonlyError as e:
     print(f"Cannot save readonly config: {e}")
-    # Output: Config 'secure' is readonly and cannot be modified
+    # Output: Config 'secure' is readonly and cannot be saved
 ```
 
 ### Use Cases
@@ -285,7 +285,13 @@ Raised when a configurable object's construction hook returns an invalid object 
 
 ```python
 class ConfigurableConstructionError(GPConfigError):
-    """Raised when a construction hook returns an invalid object type."""
+    """Raised when a construction hook returns an invalid object type.
+
+    Attributes:
+        path: Canonical dotted path used for object construction.
+        expected_type: Registered configurable class that should be returned.
+        actual_type: Type actually returned by the construction hook.
+    """
 
     def __init__(
         self,
@@ -428,5 +434,5 @@ except ConfigValidationError as e:
 
 1. **Use specific exception types**: Catch specific exceptions based on the scenario
 2. **Provide helpful error messages**: Give user-friendly error messages in exception handlers
-3. **Log original errors**: For `ConfigValidationError`, log `original_error` for debugging
+3. **Log structured attributes**: Several exceptions carry context worth logging alongside the message — `ConfigValidationError.original_error`, `ConfigurableConstructionError` (`path`, `expected_type`, `actual_type`), and `IllegalPathError.path`.
 4. **Use base class as fallback**: Use `GPConfigError` to catch all unhandled config exceptions

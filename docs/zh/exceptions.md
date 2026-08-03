@@ -191,10 +191,10 @@ except IllegalPathError as e:
 
 ```python
 class ConfigReadonlyError(GPConfigError):
-    """Raised when trying to modify or save a readonly config."""
+    """Raised when trying to save a readonly config."""
 
     def __init__(self, config_name: str):
-        super().__init__(f"Config '{config_name}' is readonly and cannot be modified")
+        super().__init__(f"Config '{config_name}' is readonly and cannot be saved")
 ```
 
 ### 示例
@@ -219,7 +219,7 @@ try:
     config.save()
 except ConfigReadonlyError as e:
     print(f"无法保存只读配置: {e}")
-    # 输出: Config 'secure' is readonly and cannot be modified
+    # 输出: Config 'secure' is readonly and cannot be saved
 ```
 
 ### 使用场景
@@ -285,7 +285,13 @@ except RegistrationError as e:
 
 ```python
 class ConfigurableConstructionError(GPConfigError):
-    """Raised when a construction hook returns an invalid object type."""
+    """Raised when a construction hook returns an invalid object type.
+
+    Attributes:
+        path: Canonical dotted path used for object construction.
+        expected_type: Registered configurable class that should be returned.
+        actual_type: Type actually returned by the construction hook.
+    """
 
     def __init__(
         self,
@@ -428,5 +434,5 @@ except ConfigValidationError as e:
 
 1. **使用特定的异常类型**：根据具体场景捕获特定的异常
 2. **提供有用的错误信息**：在异常处理中提供用户友好的错误信息
-3. **记录原始错误**：对于 `ConfigValidationError`，记录 `original_error` 以便调试
+3. **记录结构化属性**：多个异常携带值得随消息一起记录的上下文——`ConfigValidationError.original_error`、`ConfigurableConstructionError`（`path`、`expected_type`、`actual_type`）以及 `IllegalPathError.path`。
 4. **使用基类作为兜底**：最后使用 `GPConfigError` 捕获所有未处理的配置异常

@@ -1,6 +1,6 @@
 # GPConfig 类
 
-`GPConfig` 是所有配置类的基类，基于 Pydantic 的 `BaseSettings` 构建，提供类型安全的配置管理。
+`GPConfig` 是所有配置类的基类，基于 Pydantic 的 `BaseModel` 构建，提供类型安全的配置管理。
 
 ## 导入
 
@@ -11,7 +11,9 @@ from gpconfig import GPConfig
 ## 类定义
 
 ```python
-class GPConfig(BaseSettings):
+class GPConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     # 类级变量
     cfg_class_name: ClassVar[str] = "GPConfig"
     default_cfg_path: ClassVar[Optional[str]] = None
@@ -22,6 +24,10 @@ class GPConfig(BaseSettings):
     readonly: bool = False
     configured_class_name: Optional[str] = None
 ```
+
+`GPConfig` 有意继承 `BaseModel`（而非 `BaseSettings`）：每个字段的唯一真值来源是由 `GPConfigManager` 加载的 YAML 文件，通过 `config_cls(**data)` 以显式 kwargs 传入。环境变量**不会**绑定到字段，因此配置是确定性的，绝不会受到主机环境状态的隐秘影响。如果需要环境感知的配置，请使用配置目录解析（`{PROJECT_NAME}_CFG_PATH`），而不是逐字段的 env 变量。
+
+该类还定义了一个 `__init_subclass__` 钩子，在子类定义时对 `default_cfg_path` 做 fail-early（尽早失败）校验。这是一个内部钩子，不应重写。校验契约详见 [default_cfg_path](#default_cfg_path)。
 
 ## 类级变量
 
@@ -60,6 +66,8 @@ host: localhost
 port: 5432
 ```
 
+> **前提条件：** 以下示例假设 `GPConfigManager("myapp")` 能解析到一个有效的配置文件夹（包含 `global_env.yaml`）。解析规则及如何创建配置文件夹，请参阅[配置文件夹要求](manager.md#配置文件夹要求)。
+
 ```python
 from gpconfig import GPConfig, GPConfigManager
 from typing import ClassVar
@@ -80,7 +88,7 @@ db = manager.get_object("database")  # 自动使用 Database 类
 
 ### default_cfg_path
 
-保存配置时的默认相对**文件夹路径**。它是一个文件夹路径（文件系统风格，以 `/` 或 `\` 分隔），**不是**文件路径 —— 保存的文件始终命名为 `{config.name}.yaml` 并位于该文件夹内。
+保存配置时的默认相对**文件夹路径**。它是一个文件夹路径（文件系统风格，以 `/` 或 `\` 分隔），**不是**文件路径 —— 通过 `GPConfigManager.save()` 或 `make_new_project_config_folder()` 保存时，文件命名为 `{config.name}.yaml` 并位于该文件夹内。（`GPConfig.save()` 本身只是写入 `cfg_file_path`，并不强制命名规则。）
 
 ```python
 class CacheConfig(GPConfig):

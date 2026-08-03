@@ -87,7 +87,8 @@ manager = GPConfigManager("myapp", cfg_folder="/path/to/myapp")
 # 读取 global_env 中的值
 debug = manager.get_config("global_env.debug")
 
-# 加载配置（通过 cfg_class_name 自动检测类）
+# 加载配置（按 cfg_class_name 自动检测已注册的类；
+#           若该配置未注册对应的类，则返回普通 dict）
 db_config = manager.get_config("database")
 
 # 加载嵌套配置
@@ -151,6 +152,8 @@ manager.save(db_config, "backups/db_backups")  # -> backups/db_backups/{db_confi
 | [`GPConfig`](gpconfig.md) | 所有配置类的基类 |
 | [`GPConfigurable`](configurable.md) | 从配置创建的对象的基类 |
 | [`GPConfigManager`](manager.md) | 管理配置文件夹、加载和对象创建 |
+| [`GPConfigFolder`](manager.md) | 子文件夹包装器，提供对配置子树的局部访问 |
+| [`GPConfigurableContext`](configurable.md) | 传给 `from_config` 的不可变 manager+path 上下文 |
 
 ## 异常
 
@@ -160,9 +163,10 @@ manager.save(db_config, "backups/db_backups")  # -> backups/db_backups/{db_confi
 | `ConfigFolderError` | 配置文件夹未找到或无效 |
 | `ConfigNotFoundError` | 请求的配置路径不存在 |
 | `IllegalPathError` | 配置路径格式错误或逃逸出 `cfg_folder` |
-| `ConfigReadonlyError` | 尝试修改只读配置 |
+| `ConfigReadonlyError` | 尝试保存只读配置 |
 | `RegistrationError` | 类注册问题 |
 | `ConfigValidationError` | 配置文件验证失败 |
+| `ConfigurableConstructionError` | `from_config` 返回了错误类型的对象 |
 
 详细信息请参阅 [异常文档](exceptions.md)。
 

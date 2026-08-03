@@ -677,11 +677,17 @@ class GPConfigManager:
         This method registers config classes that don't configure specific objects,
         or can be called independently before register_configurable_class.
 
+        Registration is idempotent for the *same* class: re-registering a class
+        under an existing cfg_class_name is a silent no-op. Registering a
+        *different* class under an already-used cfg_class_name raises
+        RegistrationError.
+
         Args:
             config_cls: The GPConfig subclass to register.
 
         Raises:
-            RegistrationError: If a class with the same cfg_class_name is already registered.
+            RegistrationError: If cfg_class_name is already registered to a
+                different class.
         """
         cfg_class_name = config_cls.cfg_class_name
         if cfg_class_name in cls._config_classes:
@@ -701,12 +707,17 @@ class GPConfigManager:
     ) -> None:
         """Register a GPConfigurable subclass by its class name.
 
+        Registration is idempotent for the *same* class: re-registering a class
+        whose __name__ is already in the registry is a silent no-op. Registering
+        a *different* class that shares an already-used __name__ raises
+        RegistrationError.
+
         Args:
             configurable_cls: The GPConfigurable subclass to register.
 
         Raises:
             RegistrationError: If configurable_cls is not a GPConfigurable
-                subclass, or if a different class has the same name.
+                subclass, or if a different class has the same __name__.
         """
         if not isinstance(configurable_cls, type) or not issubclass(
             configurable_cls, GPConfigurable
@@ -892,6 +903,7 @@ class GPConfigManager:
                   config.default_cfg_path.
 
         Raises:
+            TypeError: If config is not a GPConfig instance.
             ConfigReadonlyError: If config.readonly is True.
             ValueError: If config.name is empty.
             IllegalPathError: If path (or default_cfg_path) contains '.', or has
@@ -950,8 +962,11 @@ class GPConfigManager:
 
         Raises:
             ConfigFolderError: If the config folder already exists.
+            TypeError: If any config in cfgs is not a GPConfig instance.
             ValueError: If any config in cfgs has an empty 'name'.
             ConfigReadonlyError: If any config in cfgs has readonly=True.
+            IllegalPathError: If any config's default_cfg_path contains '.' or
+                has empty segments.
         """
         from gpconfig.config import GPConfig
         from gpconfig.exceptions import ConfigReadonlyError

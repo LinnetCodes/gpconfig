@@ -14,10 +14,10 @@ from gpconfig import GPConfigManager
 class GPConfigManager:
     # 类级注册表
     _config_classes: dict[str, Type[Any]] = {}
-    _configurable_classes: dict[str, Type[Any]] = {}
+    _configurable_classes: dict[str, type[GPConfigurable]] = {}
 
     def __init__(self, project_name: str, cfg_folder: Optional[Path | str] = None):
-        """初始化配置管理器"""
+        """Initialize the configuration manager."""
 ```
 
 ## 初始化
@@ -69,12 +69,26 @@ myapp/
     └── openai.yaml
 ```
 
+违反这些要求会在构造时抛出 `ConfigFolderError`（见下方**构造函数抛出异常**）。
+
 > **约束：project_name 不能与配置子目录名冲突。**
 >
 > 如果 `cfg_folder` 包含一个与 `project_name` 同名的顶层子目录，`GPConfigManager.__init__`
 > 会抛出 `ConfigFolderError`。这是因为可选的 `project_name` 路径前缀（例如
 > `get_config("myapp.x")`）会遮蔽该子目录，使其无法通过点号表示法访问。该检查在构造时
 > 执行一次（只扫描一层；空子目录也会触发）。如果遇到此错误，请重命名项目名或子目录。
+
+**构造函数抛出异常：**
+
+当满足以下任一条件时，`__init__` 抛出 `ConfigFolderError`：
+
+| 触发条件 | 细节 |
+|----------|------|
+| 找不到有效文件夹 | 三个搜索位置（显式参数、`{PROJECT_NAME}_CFG_PATH`、`~/.{project_name}/`）都未能给出有效的配置文件夹。 |
+| 文件夹不存在 | 解析出的路径在磁盘上不存在。 |
+| 路径不是目录 | 解析出的路径存在但是一个文件，不是目录。 |
+| 缺少 `global_env.yaml` | 文件夹存在且是目录，但没有 `global_env.yaml` 文件。 |
+| 项目名冲突 | `cfg_folder` 的某个顶层子目录与 `project_name` 同名（见上方约束）。 |
 
 ## 属性
 
@@ -156,6 +170,14 @@ manager = GPConfigManager("myapp")
 config = manager.get_config("app")  # 自动使用 AppConfig 类
 ```
 
+**幂等性：** 用已存在的 `cfg_class_name` 重复注册*同一个*类是静默无操作的。用已被占用的 `cfg_class_name` 注册*不同的*类会抛出 `RegistrationError`。
+
+**抛出异常：**
+
+| 异常 | 触发条件 |
+|------|----------|
+| `RegistrationError` | `cfg_class_name` 已被注册给*不同的*类。 |
+
 ### register_configurable_class()
 
 注册可配置对象类。只需要传入可配置类本身，系统会通过类名进行查找。
@@ -164,7 +186,7 @@ config = manager.get_config("app")  # 自动使用 AppConfig 类
 @classmethod
 def register_configurable_class(
     cls,
-    configurable_cls: Type[Any]
+    configurable_cls: type[GPConfigurable]
 ) -> None:
     """Register a configurable class by its class name."""
 ```
@@ -207,6 +229,14 @@ port: 5432
 1. 加载配置，读取 `cfg_class_name` 和 `configured_class_name`
 2. 通过 `configured_class_name` 在 `_configurable_classes` 中查找对应的类
 3. 使用找到的类创建对象实例
+
+**幂等性：** 重复注册*同一个*类是静默无操作的。注册一个与已占用 `__name__` 同名的*不同*类会抛出 `RegistrationError`。
+
+**抛出异常：**
+
+| 异常 | 触发条件 |
+|------|----------|
+| `RegistrationError` | `configurable_cls` 不是 `GPConfigurable` 子类，或其 `__name__` 已被注册给不同的类。 |
 
 ### make_new_project_config_folder()
 
@@ -285,8 +315,10 @@ folder = GPConfigManager.make_new_project_config_folder(
 | 异常 | 触发条件 |
 |------|----------|
 | `ConfigFolderError` | 配置文件夹已存在 |
-| `ValueError` | 配置的 `name` 为空 |
-| `ConfigReadonlyError` | 配置设置了 `readonly=True` |
+| `TypeError` | `cfgs` 中存在非 `GPConfig` 实例的元素 |
+| `ValueError` | `cfgs` 中某个配置的 `name` 为空（文件以 `config.name` 命名，因此空名字没有有效的保存目标） |
+| `ConfigReadonlyError` | `cfgs` 中某个配置设置了 `readonly=True` |
+| `IllegalPathError` | 某个配置的 `default_cfg_path` 含 `.` 或有空段 |
 
 ## 实例方法
 
@@ -311,10 +343,17 @@ def get_config(
 | `config_cls` | `Type[T] \| None` | 可选的配置类 |
 
 **返回值：**
-- 如果路径解析到一个文件夹（且未传入 `config_cls`、也不存在同名文件），返回该子文件夹对应的 `GPConfigFolder`。当文件夹与同名 `.yaml` 文件同时存在时，除非传入 `config_cls`，否则文件夹优先。
+- 如果路径解析到一个文件夹且未传入 `config_cls`，返回该子文件夹对应的 `GPConfigFolder`（文件夹优先——见下方[文件夹与文件同名冲突](#文件夹与文件同名冲突)）。
 - 如果 `config_cls` 指定或自动检测到，返回配置对象实例
 - 如果路径指向特定键，返回该键的值
 - 否则返回原始字典
+
+#### 文件夹与文件同名冲突
+
+当文件夹与 `.yaml` 文件同名（例如 `services/` 和 `services.yaml`）时，默认行为是**文件夹优先**——`get_config` 返回 `GPConfigFolder`。有两种方式可以强制文件胜出：
+
+- **`get_config(path, config_cls)`** —— 传入 `config_cls` 即表示"我要的是配置对象，不是文件夹"，因此会加载文件。
+- **`get_object(path)`** —— 即使存在同名文件夹，也总是读取 `.yaml` 文件，因为它需要配置的 `configured_class_name` 来构造实例。这是通过 `get_config` 的一个私有仅关键字参数（`_force_file`）实现的。这是一个内部实现细节——**不属于公共 API，也不可供用户代码使用**；唯一支持的强制文件解析方式是传入 `config_cls`。
 
 **抛出：**
 - 当路径格式错误或逃逸出 `cfg_folder` 时抛出 `IllegalPathError`。
@@ -388,6 +427,16 @@ port: 5432
 `cls(config)`，所以标准子类无需任何改动。如需自定义构造——例如从同一配置树中加载关联配置
 ——请参阅[上下文感知构造](configurable.md#上下文感知构造)。
 
+当文件夹与同名 `.yaml` 文件同时存在时，`get_object` 总是读取文件（它需要 `configured_class_name` 来构造实例）。解析规则详见 `get_config` 下的[文件夹与文件同名冲突](#文件夹与文件同名冲突)。
+
+**抛出异常：**
+
+| 异常 | 触发条件 |
+|------|----------|
+| `ConfigNotFoundError` | `path` 无法解析到已存在的配置文件。 |
+| `RegistrationError` | 配置没有 `configured_class_name`；或它被加载为原始 dict（没有注册的配置类）；或 `configured_class_name` 指明的类未通过 `register_configurable_class()` 注册。 |
+| `ConfigurableConstructionError` | `from_config()` 返回的对象不是已注册可配置类的实例。 |
+
 ### list_configs()
 
 列出文件夹中的所有配置对象。
@@ -402,15 +451,15 @@ def list_configs(self, path: str = "") -> list[str]:
 ```python
 # 列出根目录
 items = manager.list_configs()
-# ['database', 'llm', 'cache']
+# ['cache', 'database', 'llm']  （已排序）
 
 # 列出子目录
 llm_items = manager.list_configs("llm")
-# ['openai', 'anthropic']
+# ['anthropic', 'openai']
 
 # 使用点号分隔
 llm_items = manager.list_configs("services.llm")
-# ['openai', 'anthropic']
+# ['anthropic', 'openai']
 ```
 
 ### save()
@@ -440,8 +489,10 @@ def save(self, config: "GPConfig", path: Optional[str] = None) -> None:
 | `path` | `str \| None` | 可选的相对文件夹路径（文件系统风格，以 `/` 或 `\` 分隔）。文件始终命名为 `{config.name}.yaml` 并位于该文件夹内。不能包含 `.`。 |
 
 **抛出：**
-- 当路径格式错误或逃逸出 `cfg_folder` 时抛出 `IllegalPathError`（例如包含 `.`，包括 cfg_path 风格、`.yaml` 后缀或 `..` 穿越）。
+- 当 `config` 不是 `GPConfig` 实例时抛出 `TypeError`。
 - 当配置设置了 `readonly=True` 时抛出 `ConfigReadonlyError`。
+- 当 `config.name` 为空时抛出 `ValueError`（文件以 `config.name` 命名，因此空名字没有有效的保存目标）。
+- 当路径格式错误或逃逸出 `cfg_folder` 时抛出 `IllegalPathError`（例如包含 `.`，包括 cfg_path 风格、`.yaml` 后缀或 `..` 穿越）。
 
 **示例：**
 
@@ -474,7 +525,7 @@ manager.save(new_config)  # 保存到 default_cfg_path/test.yaml
 
 ```python
 def invalidate_cache(self, path: Optional[str] = None) -> None:
-    """使配置缓存失效。"""
+    """Invalidate the config cache."""
 ```
 
 **参数：**
@@ -528,7 +579,7 @@ config3 = manager.get_config("database")  # 再次读取磁盘
 
 ## GPConfigFolder
 
-表示配置文件夹层次结构中的子文件夹。提供对特定文件夹内配置的便捷访问。
+表示配置文件夹层次结构中的子文件夹。提供对特定文件夹内配置的便捷访问。通过 `manager.get_config("<folder>")` 获取的实例会被 manager 缓存，因此重复查询同一文件夹会返回同一个 `GPConfigFolder` 对象。
 
 ### 属性
 
@@ -573,3 +624,7 @@ config3 = manager.get_config("database")  # 再次读取磁盘
 列出此文件夹中的所有配置对象。
 
 **返回值：** `List[str]` - 对象名称列表（配置名称和子文件夹名称）。
+
+#### `__repr__()`
+
+用于调试的简洁表示，例如 `GPConfigFolder(relative_path='services.llm')`。

@@ -14,7 +14,7 @@ from gpconfig import GPConfigManager
 class GPConfigManager:
     # Class-level registries
     _config_classes: dict[str, Type[Any]] = {}
-    _configurable_classes: dict[str, Type[Any]] = {}
+    _configurable_classes: dict[str, type[GPConfigurable]] = {}
 
     def __init__(self, project_name: str, cfg_folder: Optional[Path | str] = None):
         """Initialize the configuration manager"""
@@ -69,6 +69,8 @@ myapp/
     └── openai.yaml
 ```
 
+Violating these requirements raises `ConfigFolderError` at construction (see **Constructor Raises** below).
+
 > **Constraint: project_name must not collide with a config subdirectory name.**
 >
 > If `cfg_folder` contains a top-level subdirectory whose name equals
@@ -78,6 +80,18 @@ myapp/
 > check runs once at construction (scanning one level deep; empty subdirectories
 > also trigger it). Rename either the project or the subdirectory if you hit
 > this.
+
+**Constructor Raises:**
+
+`__init__` raises `ConfigFolderError` if any of these conditions hold:
+
+| Trigger | Detail |
+|---------|--------|
+| No valid folder found | None of the three search locations (explicit parameter, `{PROJECT_NAME}_CFG_PATH`, `~/.{project_name}/`) yields a valid config folder. |
+| Folder doesn't exist | The resolved path does not exist on disk. |
+| Path is not a directory | The resolved path exists but is a file, not a directory. |
+| Missing `global_env.yaml` | The folder exists and is a directory but has no `global_env.yaml` file. |
+| Project-name collision | A top-level subdirectory of `cfg_folder` shares the `project_name` (see the constraint above). |
 
 ## Properties
 
@@ -159,6 +173,14 @@ manager = GPConfigManager("myapp")
 config = manager.get_config("app")  # Automatically uses AppConfig class
 ```
 
+**Idempotency:** Re-registering the *same* class under an existing `cfg_class_name` is a silent no-op. Registering a *different* class under an already-used `cfg_class_name` raises `RegistrationError`.
+
+**Raises:**
+
+| Exception | Trigger Condition |
+|-----------|-------------------|
+| `RegistrationError` | `cfg_class_name` is already registered to a *different* class. |
+
 ### register_configurable_class()
 
 Register a configurable object class. Just pass the configurable class itself, the system will look it up by class name.
@@ -167,7 +189,7 @@ Register a configurable object class. Just pass the configurable class itself, t
 @classmethod
 def register_configurable_class(
     cls,
-    configurable_cls: Type[Any]
+    configurable_cls: type[GPConfigurable]
 ) -> None:
     """Register a configurable class by its class name."""
 ```
@@ -210,6 +232,14 @@ When calling `get_object("database")`, the system will:
 1. Load config, read `cfg_class_name` and `configured_class_name`
 2. Look up the corresponding class in `_configurable_classes` by `configured_class_name`
 3. Create an object instance using the found class
+
+**Idempotency:** Re-registering the *same* class is a silent no-op. Registering a *different* class that shares an already-used `__name__` raises `RegistrationError`.
+
+**Raises:**
+
+| Exception | Trigger Condition |
+|-----------|-------------------|
+| `RegistrationError` | `configurable_cls` is not a `GPConfigurable` subclass, or its `__name__` is already registered to a different class. |
 
 ### make_new_project_config_folder()
 
@@ -288,8 +318,10 @@ folder = GPConfigManager.make_new_project_config_folder(
 | Exception | Trigger Condition |
 |-----------|-------------------|
 | `ConfigFolderError` | Config folder already exists |
-| `ValueError` | Config's `name` is empty |
-| `ConfigReadonlyError` | Config has `readonly=True` |
+| `TypeError` | Any item in `cfgs` is not a `GPConfig` instance |
+| `ValueError` | Any config in `cfgs` has an empty `name` (the file is named after `config.name`, so an empty name has no valid target) |
+| `ConfigReadonlyError` | Any config in `cfgs` has `readonly=True` |
+| `IllegalPathError` | Any config's `default_cfg_path` contains `.` or has empty segments |
 
 ## Instance Methods
 
@@ -314,10 +346,17 @@ def get_config(
 | `config_cls` | `Type[T] \| None` | Optional config class |
 
 **Returns:**
-- If the path resolves to a folder (and no `config_cls` is given and there is no matching file), returns a `GPConfigFolder` for that subfolder. When both a folder and a `.yaml` file match, the folder wins unless `config_cls` is passed.
+- If the path resolves to a folder and no `config_cls` is given, returns a `GPConfigFolder` for that subfolder (folder priority — see [Folder/file name collision](#folderfile-name-collision) below).
 - If `config_cls` is specified or auto-detected, returns a config object instance
 - If path points to a specific key, returns that key's value
 - Otherwise returns the raw dictionary
+
+#### Folder/file name collision
+
+When both a folder and a `.yaml` file share the same name (e.g. `services/` and `services.yaml`), the default behaviour is **folder priority** — `get_config` returns a `GPConfigFolder`. There are two ways to force the file to win:
+
+- **`get_config(path, config_cls)`** — passing a `config_cls` signals "I want a config object, not a folder", so the file is loaded.
+- **`get_object(path)`** — always reads the `.yaml` file even when a same-named folder exists, because it needs the config's `configured_class_name` to construct an instance. This is done via a private keyword-only parameter on `get_config` (`_force_file`). It is an internal implementation detail — **not part of the public API and not intended for user code**; the only supported way to force file resolution is passing `config_cls`.
 
 **Raises:**
 - `IllegalPathError` if the path is malformed or escapes `cfg_folder`.
@@ -394,6 +433,16 @@ value is validated against the registered class; a non-matching type raises
 for example, to load related configs from the same tree — see
 [Context-Aware Construction](configurable.md#context-aware-construction).
 
+When a folder and a same-named `.yaml` file both exist, `get_object` always reads the file (it needs `configured_class_name` to build an instance). See [Folder/file name collision](#folderfile-name-collision) under `get_config` for the resolution rules.
+
+**Raises:**
+
+| Exception | Trigger Condition |
+|-----------|-------------------|
+| `ConfigNotFoundError` | `path` does not resolve to an existing config file. |
+| `RegistrationError` | The config has no `configured_class_name`; or it was loaded as a raw dict (no registered config class); or the class named by `configured_class_name` is not registered via `register_configurable_class()`. |
+| `ConfigurableConstructionError` | `from_config()` returns an object that is not an instance of the registered configurable class. |
+
 ### list_configs()
 
 List all config objects in a folder.
@@ -408,15 +457,15 @@ def list_configs(self, path: str = "") -> list[str]:
 ```python
 # List root directory
 items = manager.list_configs()
-# ['database', 'llm', 'cache']
+# ['cache', 'database', 'llm']  (sorted)
 
 # List subdirectory
 llm_items = manager.list_configs("llm")
-# ['openai', 'anthropic']
+# ['anthropic', 'openai']
 
 # Use dot notation
 llm_items = manager.list_configs("services.llm")
-# ['openai', 'anthropic']
+# ['anthropic', 'openai']
 ```
 
 ### save()
@@ -446,8 +495,10 @@ def save(self, config: "GPConfig", path: Optional[str] = None) -> None:
 | `path` | `str \| None` | Optional relative folder path (file-system style, `/` or `\` separated). The file is always named `{config.name}.yaml` inside this folder. Must not contain `.`. |
 
 **Raises:**
-- `IllegalPathError` if the path is malformed or escapes `cfg_folder` (e.g. contains `.`, including cfg_path style, `.yaml` suffix, or `..` traversal).
+- `TypeError` if `config` is not a `GPConfig` instance.
 - `ConfigReadonlyError` if the config has `readonly=True`.
+- `ValueError` if `config.name` is empty (the file is named after `config.name`, so an empty name has no valid target).
+- `IllegalPathError` if the path is malformed or escapes `cfg_folder` (e.g. contains `.`, including cfg_path style, `.yaml` suffix, or `..` traversal).
 
 **Examples:**
 
@@ -534,7 +585,7 @@ config3 = manager.get_config("database")  # reads disk again
 
 ## GPConfigFolder
 
-Represents a subfolder in the config folder hierarchy. Provides convenient access to configs within a specific folder.
+Represents a subfolder in the config folder hierarchy. Provides convenient access to configs within a specific folder. Instances obtained via `manager.get_config("<folder>")` are cached by the manager, so repeated lookups for the same folder return the same `GPConfigFolder` object.
 
 ### Attributes
 
@@ -579,3 +630,7 @@ Get a configurable object instance from this folder.
 List all config objects in this folder.
 
 **Returns:** `List[str]` - List of object names (config names and subfolder names).
+
+#### `__repr__()`
+
+Concise representation for debugging, e.g. `GPConfigFolder(relative_path='services.llm')`.

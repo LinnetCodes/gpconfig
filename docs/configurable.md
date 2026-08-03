@@ -16,11 +16,23 @@ class GPConfigurable:
         """Initialize the configurable object from its config."""
         self._config = config
 
+    @classmethod
+    def from_config(
+        cls,
+        config: "GPConfig",
+        *,
+        context: GPConfigurableContext,
+    ) -> "GPConfigurable":
+        """Construct an object from config within a manager context.
+        Override this to customize construction; the default calls cls(config)."""
+
     @property
     def config(self) -> "GPConfig":
         """Access the configuration object."""
         return self._config
 ```
+
+`from_config` is the entry point `GPConfigManager.get_object()` uses to build instances. See [Context-Aware Construction](#context-aware-construction) for override guidance.
 
 ## Usage Pattern
 
@@ -79,6 +91,8 @@ db = manager.get_object("database")
 # Use the object
 db.connect()
 ```
+
+`register_configurable_class` keys the registry by the class's `__name__`, so the `configured_class_name` set in YAML must match the Python class name exactly (including case).
 
 **Config file (database.yaml):**
 
@@ -168,8 +182,7 @@ constructing a `Database` object:
 ```python
 from typing import ClassVar
 
-from gpconfig import GPConfig, GPConfigurable, GPConfigManager
-from gpconfig.configurable import GPConfigurableContext
+from gpconfig import GPConfig, GPConfigurable, GPConfigManager, GPConfigurableContext
 
 
 class DatabaseConfig(GPConfig):
@@ -249,7 +262,7 @@ need another fully-constructed **object** (and accept that it recurses through
 
 - The hook **must** return an instance of the registered configurable class (a
   subclass instance is also allowed). Any other return value raises
-  `ConfigurableConstructionError`.
+  `ConfigurableConstructionError` (attributes documented in [Exceptions](exceptions.md#configurableconstructionerror)).
 - Exceptions raised by the hook — including `TypeError` from an incompatible
   signature — propagate unchanged. The manager never retries the legacy
   `cls(config)` constructor after a hook fails.

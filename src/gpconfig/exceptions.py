@@ -30,10 +30,10 @@ class IllegalPathError(GPConfigError):
 
 
 class ConfigReadonlyError(GPConfigError):
-    """Raised when trying to modify or save a readonly config."""
+    """Raised when trying to save a readonly config."""
 
     def __init__(self, config_name: str):
-        super().__init__(f"Config '{config_name}' is readonly and cannot be modified")
+        super().__init__(f"Config '{config_name}' is readonly and cannot be saved")
 
 
 class RegistrationError(GPConfigError):

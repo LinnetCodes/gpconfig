@@ -1,6 +1,6 @@
 # GPConfig Class
 
-`GPConfig` is the base class for all config classes, built on Pydantic's `BaseSettings`, providing type-safe configuration management.
+`GPConfig` is the base class for all config classes, built on Pydantic's `BaseModel`, providing type-safe configuration management.
 
 ## Import
 
@@ -11,7 +11,9 @@ from gpconfig import GPConfig
 ## Class Definition
 
 ```python
-class GPConfig(BaseSettings):
+class GPConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     # Class-level variables
     cfg_class_name: ClassVar[str] = "GPConfig"
     default_cfg_path: ClassVar[Optional[str]] = None
@@ -22,6 +24,10 @@ class GPConfig(BaseSettings):
     readonly: bool = False
     configured_class_name: Optional[str] = None
 ```
+
+`GPConfig` extends `BaseModel` (not `BaseSettings`) deliberately: the single source of truth for every field is the YAML file loaded by `GPConfigManager`, passed as explicit kwargs via `config_cls(**data)`. Environment variables are **not** bound to fields, so configuration is deterministic and never silently affected by host environment state. If you need environment-aware configuration, use the config folder resolution (`{PROJECT_NAME}_CFG_PATH`) rather than per-field env vars.
+
+The class also defines an `__init_subclass__` hook that validates `default_cfg_path` at subclass-definition time (fail-early). This is an internal hook — you should not override it. See [default_cfg_path](#default_cfg_path) for the validation contract.
 
 ## Class-Level Variables
 
@@ -60,6 +66,8 @@ host: localhost
 port: 5432
 ```
 
+> **Prerequisite:** The examples below assume `GPConfigManager("myapp")` resolves to a valid config folder (containing `global_env.yaml`). See [Config Folder Requirements](manager.md#config-folder-requirements) for the resolution rules and how to set one up.
+
 ```python
 from gpconfig import GPConfig, GPConfigManager
 from typing import ClassVar
@@ -80,7 +88,7 @@ db = manager.get_object("database")  # Automatically uses Database class
 
 ### default_cfg_path
 
-The default relative **folder path** when saving configs. It is a folder path (file-system style, `/` or `\` separated), **not** a file path — the saved file is always named `{config.name}.yaml` inside this folder.
+The default relative **folder path** when saving configs. It is a folder path (file-system style, `/` or `\` separated), **not** a file path — when saved via `GPConfigManager.save()` or `make_new_project_config_folder()`, the file is named `{config.name}.yaml` inside this folder. (`GPConfig.save()` itself just writes to `cfg_file_path` and does not enforce the naming rule.)
 
 ```python
 class CacheConfig(GPConfig):

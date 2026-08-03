@@ -87,7 +87,8 @@ manager = GPConfigManager("myapp", cfg_folder="/path/to/myapp")
 # Read global_env values
 debug = manager.get_config("global_env.debug")
 
-# Load config (auto-detect class by cfg_class_name)
+# Load config (auto-detects the registered class by cfg_class_name;
+#               returns a plain dict if no class is registered for it)
 db_config = manager.get_config("database")
 
 # Load nested config
@@ -151,6 +152,8 @@ manager.save(db_config, "backups/db_backups")  # -> backups/db_backups/{db_confi
 | [`GPConfig`](gpconfig.md) | Base class for all config classes |
 | [`GPConfigurable`](configurable.md) | Base class for objects created from configs |
 | [`GPConfigManager`](manager.md) | Manages config folder, loading, and object creation |
+| [`GPConfigFolder`](manager.md) | Subfolder wrapper, provides scoped access to a config subtree |
+| [`GPConfigurableContext`](configurable.md) | Immutable manager+path context passed to `from_config` |
 
 ## Exceptions
 
@@ -160,9 +163,10 @@ manager.save(db_config, "backups/db_backups")  # -> backups/db_backups/{db_confi
 | `ConfigFolderError` | Config folder not found or invalid |
 | `ConfigNotFoundError` | Requested config path does not exist |
 | `IllegalPathError` | Config path is malformed or escapes `cfg_folder` |
-| `ConfigReadonlyError` | Attempted to modify readonly config |
+| `ConfigReadonlyError` | Attempted to save a readonly config |
 | `RegistrationError` | Class registration issues |
 | `ConfigValidationError` | Config file validation failed |
+| `ConfigurableConstructionError` | `from_config` returned an object of the wrong type |
 
 See [Exceptions Documentation](exceptions.md) for details.
 

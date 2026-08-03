@@ -16,11 +16,23 @@ class GPConfigurable:
         """Initialize the configurable object from its config."""
         self._config = config
 
+    @classmethod
+    def from_config(
+        cls,
+        config: "GPConfig",
+        *,
+        context: GPConfigurableContext,
+    ) -> "GPConfigurable":
+        """Construct an object from config within a manager context.
+        Override this to customize construction; the default calls cls(config)."""
+
     @property
     def config(self) -> "GPConfig":
         """Access the configuration object."""
         return self._config
 ```
+
+`from_config` 是 `GPConfigManager.get_object()` 构造实例时使用的入口方法。关于如何重写它，请参阅[上下文感知构造](#上下文感知构造)。
 
 ## 使用模式
 
@@ -79,6 +91,8 @@ db = manager.get_object("database")
 # 使用对象
 db.connect()
 ```
+
+`register_configurable_class` 按类的 `__name__` 注册到注册表，因此 YAML 中设置的 `configured_class_name` 必须与 Python 类名完全一致（包括大小写）。
 
 **配置文件 (database.yaml)：**
 
@@ -165,8 +179,7 @@ class Worker(GPConfigurable):
 ```python
 from typing import ClassVar
 
-from gpconfig import GPConfig, GPConfigurable, GPConfigManager
-from gpconfig.configurable import GPConfigurableContext
+from gpconfig import GPConfig, GPConfigurable, GPConfigManager, GPConfigurableContext
 
 
 class DatabaseConfig(GPConfig):
@@ -244,7 +257,7 @@ print(worker.database.host)     # db.internal
 ### 重要约束
 
 - 钩子**必须**返回已注册可配置类的实例（也允许返回其子类的实例）。其它返回值会触发
-  `ConfigurableConstructionError`。
+  `ConfigurableConstructionError`（属性详见[异常文档](exceptions.md#configurableconstructionerror)）。
 - 钩子抛出的异常——包括签名不兼容导致的 `TypeError`——会原样传播。钩子失败后 manager
   绝不会回退重试旧式 `cls(config)` 构造器。
 - `get_object()` **不**缓存对象；每次调用都返回新实例。`get_config()` **会**按文件缓存配置数据。
