@@ -504,7 +504,12 @@ manager.invalidate_cache("does.not.exist")
 
 这是一种**快照（snapshot）**模型：内存中的缓存不会自动检测配置文件的外部更改。
 
-当你通过 `GPConfigManager.save()`（或 `GPConfig.save()`）保存配置时，缓存会自动更新以反映已保存的对象。但是，如果配置文件被其他方式修改（手动编辑、其他进程或工具写入），manager 会继续返回过期的缓存值。
+保存配置不会让缓存变旧，无需手动刷新。具体机制取决于调用哪个 `save()`：
+
+- **`GPConfig.save()`** —— 对于通过 `GPConfigManager.get_config()` 获取的实例，你持有的对象*就是*缓存中的对象本身（同一引用），因此其内存状态早已反映在缓存中；`save()` 只是把该状态落盘。
+- **`GPConfigManager.save(config)`** —— 除了写文件之外，还会把该 config *注册*进缓存。当你保存一个**新构造的** `GPConfig` 实例时应使用此方法：它会同时把实例写入配置树并加载进缓存，立即可被 `get_config` 读取。
+
+但是，如果配置文件被其他方式修改（手动编辑、其他进程或工具写入），manager 会继续返回过期的缓存值。
 
 要在被外部修改后强制重新加载，请调用 `manager.invalidate_cache()`（清空整个缓存）或 `manager.invalidate_cache(path)`（清除单个文件的缓存条目）。下一次 `get_config` 调用会重新从磁盘读取。
 

@@ -510,7 +510,12 @@ manager.invalidate_cache("does.not.exist")
 
 This is a **snapshot** model: the in-memory cache does not automatically detect external changes to the config files.
 
-When you save a config via `GPConfigManager.save()` (or `GPConfig.save()`), the cache is updated automatically to reflect the saved object. However, if a config file is modified by other means (manual editing, another process or tool writing to it), the manager will continue serving the stale cached value.
+Saving a config does not leave the cache stale — no manual refresh is needed. The mechanism depends on which `save()` you call:
+
+- **`GPConfig.save()`** — for an instance obtained via `GPConfigManager.get_config()`, the object you hold *is* the cached object itself (same reference), so its in-memory state is already reflected in the cache; `save()` simply persists that state to disk.
+- **`GPConfigManager.save(config)`** — in addition to writing the file, this *registers* the config into the cache. Use this when saving a **newly-constructed** `GPConfig` instance so that it is both written into the config tree and made immediately retrievable via `get_config`.
+
+However, if a config file is modified by other means (manual editing, another process or tool writing to it), the manager will continue serving the stale cached value.
 
 To force a reload after an external modification, call `manager.invalidate_cache()` (clears the entire cache) or `manager.invalidate_cache(path)` (clears a single file's entry). The next `get_config` call will re-read from disk.
 
