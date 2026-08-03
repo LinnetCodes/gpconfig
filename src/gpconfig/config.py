@@ -4,21 +4,27 @@ from pathlib import Path
 from typing import ClassVar, Optional
 
 import yaml
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, ConfigDict
 
 from gpconfig.exceptions import ConfigReadonlyError
 
 
-class GPConfig(BaseSettings):
+class GPConfig(BaseModel):
     """
     Base class for all configuration classes.
     Each subclass is initialized from a YAML config file.
+
+    GPConfig extends pydantic's BaseModel rather than BaseSettings: the
+    source of truth for every field is the YAML file loaded by
+    GPConfigManager (passed as explicit kwargs via config_cls(**data)).
+    Environment variables are deliberately NOT bound to fields — this
+    keeps configuration deterministic and avoids leaking host
+    environment state into config objects. If you need environment-aware
+    configuration, set it up explicitly in the config folder resolution
+    ({PROJECT_NAME}_CFG_PATH) rather than via per-field env vars.
     """
 
-    model_config = SettingsConfigDict(
-        extra="forbid",
-        env_prefix="GPCFG_",
-    )
+    model_config = ConfigDict(extra="forbid")
 
     # Class-level defaults (can be overridden in subclasses)
     cfg_class_name: ClassVar[str] = "GPConfig"
