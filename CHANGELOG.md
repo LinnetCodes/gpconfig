@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-04
+
+**Context-aware object construction and a deterministic config base.** This
+release adds a context-aware construction hook for `GPConfigurable` (so objects
+can resolve related configs from the same tree at build time), makes
+`GPConfigable` registration mandatory for `get_object()`, and switches
+`GPConfig` from `pydantic_settings.BaseSettings` to `pydantic.BaseModel` so
+configuration is strictly YAML-driven and never silently affected by host
+environment variables.
+
+### Added
+- **Context-aware object construction:** `GPConfigurable.from_config(cls, config, *, context)` classmethod — the new entry point that `GPConfigManager.get_object()` calls to build instances. The default implementation is `cls(config)`, so standard subclasses need no changes; override it to customise construction (e.g. load related configs via `context.manager`). `from_config` is called exactly once per `get_object()` call; a non-matching return type raises `ConfigurableConstructionError`. `get_object` still never caches — every call returns a fresh instance.
+- `GPConfigurableContext` — an immutable, frozen + slotted dataclass (exported from `gpconfig`) carrying the `manager` and the canonical dotted `path` for a construction request.
+- `ConfigurableConstructionError` exception (in `gpconfig.exceptions`, exported from `gpconfig`): raised when `from_config()` returns a value that is not an instance of the registered configurable class. Carries `path`, `expected_type`, and `actual_type` attributes.
+- Exceptions raised inside a `from_config` hook (including `TypeError` from an incompatible signature) now propagate unchanged; the manager never retries the legacy `cls(config)` constructor after a hook fails. Cycle detection remains the caller's responsibility.
+- `register_configurable_class` / `register_config_class` now document and enforce their idempotency contract (re-registering the same class is a silent no-op; a different class under a colliding name raises `RegistrationError`).
+
+### Changed
+- **BREAKING:** `GPConfig` now extends `pydantic.BaseModel` instead of `pydantic_settings.BaseSettings`, and `model_config` is `ConfigDict(extra="forbid")` with no `env_prefix`. Environment variables are no longer bound to fields — configuration is strictly YAML-driven and deterministic. Code that relied on `GPCFG_*`-prefixed environment variables to override config values (an undocumented behaviour, since YAML kwargs already took priority for schema fields) must move that configuration into the YAML files. The `{PROJECT_NAME}_CFG_PATH` environment variable for folder resolution is unaffected (it reads `os.environ` directly).
+- **BREAKING:** `pydantic-settings` is no longer a dependency. Code that imported `BaseSettings` / `SettingsConfigDict` via `gpconfig` must import them from `pydantic_settings` directly if still needed.
+- **BREAKING:** `get_object()` now requires the configurable class named by `configured_class_name` to be registered via `register_configurable_class()`; it raises `RegistrationError` if the class is missing or the config has no `configured_class_name`.
+- `register_configurable_class` keys the registry by the class's `__name__`, so the `configured_class_name` set in YAML must match the Python class name exactly (case-sensitive).
+- `ConfigReadonlyError` docstring and message now say "save" (previously "modify or save" / "cannot be modified"); the exception is only raised on the save path.
+
+### Fixed
+- `GPConfigManager.save()` and `make_new_project_config_folder()` now raise `TypeError` for non-`GPConfig` arguments (previously only validated inside the loop); source docstrings updated to list all raised exceptions in check order.
+- `list_configs()` example outputs corrected to reflect the actual `sorted()` return order.
+
+### Documentation
+- Comprehensive documentation consistency overhaul across `docs/` (EN) and `docs/zh/` (ZH): structured `Raises` tables for `get_object()`, `save()`, `make_new_project_config_folder()`, and `__init__`; idempotency rules for the `register_*` methods; a Folder/file name collision subsection clarifying folder priority and the private `_force_file` mechanism; `from_config` added to the `GPConfigable` Class Definition; cross-references for `__init_subclass__`, `ConfigurableConstructionError` attributes, and the `configured_class_name == __name__` rule; completed index overview tables; and a `cfg_folder` prerequisite note for runnable examples. Verified with `mkdocs build --strict` (zero warnings) and a full broken-link scan.
+
 ## [0.3.5] - 2026-08-02
 
 **Duplicate YAML key validation bugfix release.** gpconfig now fails early
@@ -70,7 +101,8 @@ and documentation completeness. See the sections below for details.
 - Documented the read-only `global_env` contract (`MappingProxyType`, mutation errors, `dict(...)` copy) in both EN and ZH manager references.
 - Documented the `default_cfg_path` folder-path contract and `__init_subclass__` fail-early validation in both EN and ZH GPConfig references.
 
-[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.5...HEAD
+[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.4.0...HEAD
+[0.4.0]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.5...version-0.4.0
 [0.3.5]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.4...version-0.3.5
 [0.3.4]: https://github.com/LinnetCodes/gpconfig/releases/tag/version-0.3.4
 [0.3.3]: https://github.com/LinnetCodes/gpconfig/releases/tag/version-0.3.3
