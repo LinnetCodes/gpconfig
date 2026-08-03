@@ -13,7 +13,7 @@
 - Run every Python command with `.venv/Scripts/python.exe`; never bare `python`/`pip`/`pytest`/`ruff`.
 - Modify ONLY these four files: `docs/configurable.md`, `docs/zh/configurable.md`, `docs/manager.md`, `docs/zh/manager.md`. No new page, no `mkdocs.yml` change.
 - Do NOT touch `src/gpconfig/**`, `tests/**`, `src/gpconfig/__init__.py` `__version__` (stays `0.3.4`), README, `.github/**`, or `dev_docs/**`.
-- The canonical class spelling is `GPConfigurable`, the context is `GPConfigurableContext`, the exception is `ConfigurableConstructionError`. Never write `GPConfigurable` (missing "ur") as a real identifier — only inside the typo-fix step where the diff itself converts `GPConfigurable` → `GPConfigurable`.
+- The canonical class spelling is `GPConfigurable`, the context is `GPConfigurableContext`, the exception is `ConfigurableConstructionError`.
 - Bilingual parity: every EN section/heading/code block/table/constraint bullet has a ZH counterpart with identical code and equivalent prose. Headings mirror the existing page's language style (EN: "Context-Aware Construction"; ZH: "上下文感知构造").
 - The runnable example must use only the stable public API already shipped on this branch: `GPConfig`, `GPConfigurable`, `GPConfigurableContext`, `GPConfigManager`, `register_config_class`, `register_configurable_class`, `get_config`, `get_object`. No invented methods or attributes.
 - The example verification script is throwaway — it is NOT committed. Only the four doc files are committed.
@@ -25,8 +25,8 @@
 
 ### Files modified
 
-- `docs/configurable.md` — new `## Context-Aware Construction` section between `## config Property` (ends ~line 112) and `## Complete Example` (line 114); fix `GPConfigurable` typo at line 235.
-- `docs/zh/configurable.md` — ZH mirror `## 上下文感知构造` between `## config 属性` (ends ~line 112) and `## 完整示例` (line 114); fix `GPConfigurable` typo at line 235.
+- `docs/configurable.md` — new `## Context-Aware Construction` section between `## config Property` (ends ~line 112) and `## Complete Example` (line 114).
+- `docs/zh/configurable.md` — ZH mirror `## 上下文感知构造` between `## config 属性` (ends ~line 112) and `## 完整示例` (line 114).
 - `docs/manager.md` — short `from_config` dispatch paragraph + cross-link appended to the `### get_object()` section (after its `**Note:**` bullets at line 384, before `### list_configs()` at line 386).
 - `docs/zh/manager.md` — ZH mirror appended to the `### get_object()` section (after its `**注意：**` bullets at line 381, before `### list_configs()` at line 383).
 
@@ -188,8 +188,8 @@ Do NOT commit anything in this task. The deliverable is the verified example tex
 ### Task 2: Add the "Context-Aware Construction" Section to Both Doc Pages
 
 **Files:**
-- Modify: `docs/configurable.md` (insert section between `## config Property` block and `## Complete Example`; fix line-235 typo).
-- Modify: `docs/zh/configurable.md` (insert ZH mirror section between `## config 属性` block and `## 完整示例`; fix line-235 typo).
+- Modify: `docs/configurable.md` (insert section between `## config Property` block and `## Complete Example`).
+- Modify: `docs/zh/configurable.md` (insert ZH mirror section between `## config 属性` block and `## 完整示例`).
 
 **Interfaces:**
 - Consumes: the verified example from Task 1 (use the class/YAML/assertion content verbatim).
@@ -353,11 +353,7 @@ need another fully-constructed **object** (and accept that it recurses through
 > users never need to override it.
 ````
 
-- [ ] **Step 2: Fix the EN `GPConfigurable` typo at line 235**
-
-In `docs/configurable.md`, the `### Type Hints` block contains `class Database(GPConfigable):`. Change it to `class Database(GPConfigurable):` (add the missing `ur`). Only this single occurrence on line 235.
-
-- [ ] **Step 3: Insert the ZH mirror section into `docs/zh/configurable.md`**
+- [ ] **Step 2: Insert the ZH mirror section into `docs/zh/configurable.md`**
 
 Insert immediately BEFORE the `## 完整示例` line (line 114), right after the `## config 属性` section ends. Use this exact content (code blocks identical to EN; prose in Simplified Chinese):
 
@@ -506,11 +502,7 @@ print(worker.database.host)     # db.internal
 > 默认的 `from_config()` 保持了标准子类的契约，因此大多数用户无需重写它。
 ````
 
-- [ ] **Step 4: Fix the ZH `GPConfigurable` typo at line 235**
-
-In `docs/zh/configurable.md`, the `### 类型提示` block contains `class Database(GPConfigable):` at line 235. Change it to `class Database(GPConfigurable):`. Only this single occurrence.
-
-- [ ] **Step 5: Verify both pages render structurally — no broken fences**
+- [ ] **Step 3: Verify both pages render structurally — no broken fences**
 
 Run a fence-balance check on the two edited files:
 
@@ -520,7 +512,7 @@ Run a fence-balance check on the two edited files:
 
 Expected: each file prints an **even** number (code fences balance). If either is odd, a fence was left open — fix it.
 
-- [ ] **Step 6: Commit the `configurable.md` changes (both languages)**
+- [ ] **Step 4: Commit the `configurable.md` changes (both languages)**
 
 ```bash
 git add docs/configurable.md docs/zh/configurable.md
@@ -646,15 +638,7 @@ grep -c "上下文感知构造" docs/zh/manager.md
 
 Expected: each prints `1`.
 
-- [ ] **Step 5: Confirm `GPConfigurable` typo fully gone from doc code**
-
-```bash
-grep -rn "GPConfigable[^r]" docs/configurable.md docs/zh/configurable.md docs/manager.md docs/zh/manager.md || echo "clean"
-```
-
-Expected: `clean` (no `GPConfigable` missing-"ur" identifiers remain in the four files).
-
-- [ ] **Step 6: Scope check — only the four doc files changed on this branch since the docs work began**
+- [ ] **Step 5: Scope check — only the four doc files changed on this branch since the docs work began**
 
 ```bash
 git diff --name-only 26f3d78..HEAD
@@ -663,7 +647,7 @@ git status --short --branch
 
 Expected: name list contains exactly `docs/configurable.md`, `docs/zh/configurable.md`, `docs/manager.md`, `docs/zh/manager.md`; worktree clean. (Base `26f3d78` is the docs-spec commit; everything since is the docs implementation.)
 
-- [ ] **Step 7: Confirm version and untouched files remain untouched**
+- [ ] **Step 6: Confirm version and untouched files remain untouched**
 
 ```bash
 git diff main...HEAD -- mkdocs.yml README.md src/gpconfig/__init__.py dev_docs

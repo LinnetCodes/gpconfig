@@ -48,12 +48,10 @@ the migration guide.
 
 ### Files modified
 
-- `docs/configurable.md` — new "Context-Aware Construction" section; fix the
-  pre-existing `GPConfigable` → `GPConfigurable` typo at line 235.
-- `docs/zh/configurable.md` — mirror section in Simplified Chinese; fix the same
-  typo if present.
+- `docs/configurable.md` — new "Context-Aware Construction" section.
+- `docs/zh/configurable.md` — mirror section in Simplified Chinese.
 - `docs/manager.md` — short `from_config`-dispatch paragraph in the `get_object`
-  area + cross-link; fix the same typo if present.
+  area + cross-link.
 - `docs/zh/manager.md` — ZH mirror of the `manager.md` change.
 
 ### Files NOT modified
@@ -198,8 +196,5 @@ The implementation plan will include:
 - **Section length:** the new `configurable.md` section is the largest on the
   page. The table + tight bullet style (matching the existing "Notes" density)
   keeps it scannable.
-- **`GPConfigable` → `GPConfigurable` typo fix** is incidental but in-scope: it is the same class
-  being documented, and fixing it during this pass follows "improve code you are
-  touching." No separate commit required.
 - **No version bump:** consistent with the prior implementation plan's stance
   that the version and release notes are a later, concentrated release effort.
