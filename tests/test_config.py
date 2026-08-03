@@ -18,7 +18,7 @@ class SimpleConfig(GPConfig):
 class TestGPConfigBasics:
     """Test basic GPConfig functionality."""
 
-    def test_inherits_from_pydantic_settings(self):
+    def test_pydantic_validation_works(self):
         """GPConfig should work with pydantic validation."""
         config = SimpleConfig(host="localhost")
         assert config.host == "localhost"
