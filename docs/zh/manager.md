@@ -380,6 +380,13 @@ port: 5432
 - 配置文件必须包含 `configured_class_name` 字段
 - `configured_class_name` 对应的类必须已通过 `register_configurable_class()` 注册
 
+在内部，`get_object()` 会构造一个 `GPConfigurableContext(manager=self, path=<canonical>)`
+——其中 `<canonical>` 是源 YAML 的点路径，去掉了 `.yaml` 后缀和可选的项目名前缀——然后
+**只调用一次** `configurable_cls.from_config(config, context=context)`。返回值会与已注册的类
+校验；类型不匹配会抛出 `ConfigurableConstructionError`。默认的 `from_config()` 只是调用
+`cls(config)`，所以标准子类无需任何改动。如需自定义构造——例如从同一配置树中加载关联配置
+——请参阅[上下文感知构造](configurable.md#上下文感知构造)。
+
 ### list_configs()
 
 列出文件夹中的所有配置对象。
