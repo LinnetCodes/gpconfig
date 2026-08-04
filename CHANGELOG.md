@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Context-aware object construction and a deterministic config base.** This
 release adds a context-aware construction hook for `GPConfigurable` (so objects
 can resolve related configs from the same tree at build time), makes
-`GPConfigable` registration mandatory for `get_object()`, and switches
+`GPConfigurable` registration mandatory for `get_object()`, and switches
 `GPConfig` from `pydantic_settings.BaseSettings` to `pydantic.BaseModel` so
 configuration is strictly YAML-driven and never silently affected by host
 environment variables.
@@ -36,7 +36,7 @@ environment variables.
 - `list_configs()` example outputs corrected to reflect the actual `sorted()` return order.
 
 ### Documentation
-- Comprehensive documentation consistency overhaul across `docs/` (EN) and `docs/zh/` (ZH): structured `Raises` tables for `get_object()`, `save()`, `make_new_project_config_folder()`, and `__init__`; idempotency rules for the `register_*` methods; a Folder/file name collision subsection clarifying folder priority and the private `_force_file` mechanism; `from_config` added to the `GPConfigable` Class Definition; cross-references for `__init_subclass__`, `ConfigurableConstructionError` attributes, and the `configured_class_name == __name__` rule; completed index overview tables; and a `cfg_folder` prerequisite note for runnable examples. Verified with `mkdocs build --strict` (zero warnings) and a full broken-link scan.
+- Comprehensive documentation consistency overhaul across `docs/` (EN) and `docs/zh/` (ZH): structured `Raises` tables for `get_object()`, `save()`, `make_new_project_config_folder()`, and `__init__`; idempotency rules for the `register_*` methods; a Folder/file name collision subsection clarifying folder priority and the private `_force_file` mechanism; `from_config` added to the `GPConfigurable` Class Definition; cross-references for `__init_subclass__`, `ConfigurableConstructionError` attributes, and the `configured_class_name == __name__` rule; completed index overview tables; and a `cfg_folder` prerequisite note for runnable examples. Verified with `mkdocs build --strict` (zero warnings) and a full broken-link scan.
 
 ## [0.3.5] - 2026-08-02
 
