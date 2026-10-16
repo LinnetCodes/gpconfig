@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-16
+
+**Fail-fast rejection of unaddressable config names.** `GPConfigManager.__init__` now
+recursively validates the config tree and raises `ConfigFolderError` for any `.yaml`
+file whose stem contains `.` or any subdirectory whose name contains `.`. Such names
+were previously accepted silently — listed by `list_configs()` yet never addressable
+by dot-notation (`domain_name.com.yaml` is listed as `domain_name.com`, but
+`get_config("domain_name.com")` looks for `domain_name/com.yaml`). The `@`
+convention is now documented for names that need literal dots (typically internet
+domains): write each `.` as `@` in the file name (`gpdc/domain_name@com.yaml`,
+addressed as `gpdc.domain_name@com`) — `@` is an ordinary pass-through character at
+the addressing layer. `list_configs()` itself is unchanged, but its output can no
+longer contain unaddressable entries.
+
+### Changed
+- **BREAKING:** `GPConfigManager.__init__` raises `ConfigFolderError` at construction when the config tree (scanned recursively from `cfg_folder`; all three folder-resolution sources are covered) contains a `.yaml` stem or subdirectory name with `.` — including hidden directories such as `.git`. The cfg_folder's own name (e.g. `~/.myapp`) and non-`.yaml` files (`README.md`, `.yml`) are not checked. The error message names the offending entry and suggests the `@` spelling (e.g. `gpdc/domain_name.com.yaml -- write it as gpdc/domain_name@com.yaml`). Migration: rename `name.with.dots.yaml` to `name@with@dots.yaml` (or drop the dots).
+
+### Documentation
+- New naming-rule section in both READMEs and the EN/ZH manager references: `.` is the dot-notation hierarchy separator; literal dots in a config name are written `@` in the file name (`domain_name@com.yaml` ⟺ name `domain_name.com`); the mapping is injective as long as `@` is not a legal character in the consumer's own name grammar; consumer libraries needing real dots implement "escape on addressing, restore after loading" client-side — gpconfig's `config.name` always returns the raw stem with no translation. The constructor `Raises` tables gained the dotted-names row.
+
 ## [0.4.0] - 2026-08-04
 
 **Context-aware object construction and a deterministic config base.** This
@@ -101,7 +121,8 @@ and documentation completeness. See the sections below for details.
 - Documented the read-only `global_env` contract (`MappingProxyType`, mutation errors, `dict(...)` copy) in both EN and ZH manager references.
 - Documented the `default_cfg_path` folder-path contract and `__init_subclass__` fail-early validation in both EN and ZH GPConfig references.
 
-[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.4.0...HEAD
+[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.5.0...HEAD
+[0.5.0]: https://github.com/LinnetCodes/gpconfig/compare/version-0.4.0...version-0.5.0
 [0.4.0]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.5...version-0.4.0
 [0.3.5]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.4...version-0.3.5
 [0.3.4]: https://github.com/LinnetCodes/gpconfig/releases/tag/version-0.3.4
