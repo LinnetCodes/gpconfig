@@ -67,6 +67,8 @@ password: secret
 database: myapp
 ```
 
+**Naming rule:** `.` is the path separator in dot-notation, so `.yaml` file names and subdirectory names must not contain `.` (construction fails with `ConfigFolderError` otherwise). To use a name with literal dots — e.g. an internet domain — write each `.` as `@`: `domain_name@com.yaml` is addressed as `get_config("domain_name@com")`. `@` is a plain pass-through character at the addressing layer; consumer libraries that need real dots implement "escape on addressing, restore after loading" client-side (`config.name` always returns the raw stem). See the [naming rule](docs/manager.md#config-folder-requirements) in the docs.
+
 ### 3. Initialize Manager and Load Configs
 
 ```python

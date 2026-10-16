@@ -60,6 +60,7 @@ manager = GPConfigManager("myapp")
 有效的配置文件夹必须：
 - 存在且为目录
 - 包含 `global_env.yaml` 文件
+- 树内（递归）不存在 stem 含 `.` 的 `.yaml` 文件或名字含 `.` 的子目录
 
 ```
 myapp/
@@ -78,6 +79,30 @@ myapp/
 > `get_config("myapp.x")`）会遮蔽该子目录，使其无法通过点号表示法访问。该检查在构造时
 > 执行一次（只扫描一层；空子目录也会触发）。如果遇到此错误，请重命名项目名或子目录。
 
+> **命名规则：`.` 是路径层级分隔符 —— 名字中的字面 `.` 写作 `@`。**
+>
+> 点号表示法用 `.` 作为层级分隔符（`gpdc.core_domain` → `gpdc/core_domain.yaml`）。
+> stem 含 `.` 的 `.yaml` 文件（如 `domain_name.com.yaml`）会被 `list_configs()` 列出、
+> 却永远无法寻址 —— `get_config("domain_name.com")` 查找的是 `domain_name/com.yaml`。
+> 名字含 `.` 的子目录同理。自 v0.5.0 起，`GPConfigManager.__init__` 会递归拒绝这类
+> 名字并抛出 `ConfigFolderError`（报错信息会给出 `@` 写法建议）。
+>
+> 想使用含 `.` 的名字（典型：互联网域名，如 `domain_name.com`）时，把**文件名**中的
+> 每个 `.` 写作 `@`：
+>
+> | 配置名 | 磁盘文件 | 寻址路径 |
+> |--------|----------|----------|
+> | `domain_name.com` | `gpdc/domain_name@com.yaml` | `gpdc.domain_name@com` |
+>
+> `@` 在寻址层是普通透传字符（取其互联网地址 `user@host` 的含义），因此
+> `domain_name@com.yaml` 无需任何特殊处理即可使用。只要 `@` 在消费方自身的名称规则中
+> 是非法字符，该映射就是单射的。
+>
+> **面向消费方库：** gpconfig 的 `config.name` 始终返回原始文件 stem
+> （`domain_name@com`）—— 不做任何转换。如果你的库需要含真实 `.` 的名字，请在客户端
+> 自行实现「寻址时转义、加载后还原」（调用 `get_config`/`get_object` 前把 `.` 转义为
+> `@`，消费 `config.name` 时把 `@` 还原为 `.`）。
+
 **构造函数抛出异常：**
 
 当满足以下任一条件时，`__init__` 抛出 `ConfigFolderError`：
@@ -89,6 +114,7 @@ myapp/
 | 路径不是目录 | 解析出的路径存在但是一个文件，不是目录。 |
 | 缺少 `global_env.yaml` | 文件夹存在且是目录，但没有 `global_env.yaml` 文件。 |
 | 项目名冲突 | `cfg_folder` 的某个顶层子目录与 `project_name` 同名（见上方约束）。 |
+| 树内存在含点名字 | `cfg_folder` 内任何 `.yaml` 的 stem 或子目录名含 `.`（点号表示法无法寻址；应写作 `@`，见上方命名规则）。 |
 
 ## 属性
 

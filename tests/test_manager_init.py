@@ -195,3 +195,91 @@ class TestProjectNameCollision:
         manager = GPConfigManager("myapp", cfg_folder=tmp_path)
 
         assert manager.project_name == "myapp"
+
+
+class TestDottedNameValidation:
+    """Test fail-early rejection of '.' in yaml stems and directory names.
+
+    Dot-notation addresses configs by splitting on '.', so a `.yaml` stem or
+    subdirectory name containing '.' would be listed by list_configs() yet
+    never addressable (semi-consistent state). Construction must reject such
+    trees with the '@' convention suggested for literal dots in names.
+    """
+
+    def test_dotted_yaml_stem_at_root_raises(self, tmp_path: Path):
+        """A root-level yaml whose stem contains '.' raises ConfigFolderError."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        (tmp_path / "domain_name.com.yaml").write_text("key: value\n")
+
+        with pytest.raises(ConfigFolderError) as exc_info:
+            GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        message = str(exc_info.value)
+        # Message names the offending file and suggests the '@' spelling.
+        assert "domain_name.com.yaml" in message
+        assert "domain_name@com.yaml" in message
+
+    def test_dotted_yaml_stem_in_subfolder_raises(self, tmp_path: Path):
+        """A dotted stem nested in a subfolder also raises (recursive scan)."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        sub = tmp_path / "gpdc"
+        sub.mkdir()
+        (sub / "domain_name.com.yaml").write_text("key: value\n")
+
+        with pytest.raises(ConfigFolderError) as exc_info:
+            GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        message = str(exc_info.value)
+        assert "gpdc/domain_name.com.yaml" in message
+        assert "gpdc/domain_name@com.yaml" in message
+
+    def test_dotted_subdirectory_name_raises(self, tmp_path: Path):
+        """A subdirectory whose name contains '.' raises ConfigFolderError."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        sub = tmp_path / "my.folder"
+        sub.mkdir()
+        (sub / "x.yaml").write_text("key: value\n")
+
+        with pytest.raises(ConfigFolderError) as exc_info:
+            GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        assert "my.folder" in str(exc_info.value)
+
+    def test_hidden_subdirectory_raises(self, tmp_path: Path):
+        """Hidden dirs (e.g. '.git') contain '.' and are equally unaddressable."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        (tmp_path / ".git").mkdir()
+
+        with pytest.raises(ConfigFolderError) as exc_info:
+            GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        assert ".git" in str(exc_info.value)
+
+    def test_at_convention_file_is_addressable(self, tmp_path: Path):
+        """'@' is a dot-notation pass-through: domain_name@com.yaml works."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        (tmp_path / "domain_name@com.yaml").write_text("key: value\n")
+
+        manager = GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        assert manager.list_configs() == ["domain_name@com"]
+        assert manager.get_config("domain_name@com") == {"key": "value"}
+
+    def test_dotted_non_yaml_files_are_ignored(self, tmp_path: Path):
+        """Dotted non-yaml files (README.md, data.backup) never trigger."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        (tmp_path / "README.md").write_text("# notes\n")
+        (tmp_path / "data.backup").write_text("backup\n")
+
+        manager = GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        assert manager.project_name == "myapp"
+
+    def test_dotted_yml_file_is_ignored(self, tmp_path: Path):
+        """'.yml' files are outside the manager's scope (only '.yaml' counts)."""
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        (tmp_path / "domain_name.com.yml").write_text("key: value\n")
+
+        manager = GPConfigManager("myapp", cfg_folder=tmp_path)
+
+        assert manager.list_configs() == []

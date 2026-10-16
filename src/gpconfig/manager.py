@@ -104,7 +104,9 @@ class GPConfigManager:
         2. Environment variable - {PROJECT_NAME}_CFG_PATH (uppercase)
         3. User home subfolder - ~/.{project_name}/
 
-    A valid config folder must contain global_env.yaml.
+    A valid config folder must contain global_env.yaml, and no `.yaml` stem
+    or subdirectory name anywhere inside it may contain '.' (such names are
+    unaddressable by dot-notation; use '@' for literal dots in config names).
     """
 
     # Class-level registry: cfg_class_name -> GPConfig subclass
@@ -122,9 +124,11 @@ class GPConfigManager:
 
         Raises:
             ConfigFolderError: If config folder doesn't exist, lacks
-                global_env.yaml, or contains a top-level subdirectory whose
+                global_env.yaml, contains a top-level subdirectory whose
                 name equals project_name (which the optional project-name path
-                prefix would shadow).
+                prefix would shadow), or contains a `.yaml` stem / subdirectory
+                name with '.' anywhere in the tree (unaddressable by
+                dot-notation).
         """
         self._project_name = project_name
         self._cfg_folder = self._resolve_cfg_folder(project_name, cfg_folder)
@@ -212,6 +216,7 @@ class GPConfigManager:
         A valid config folder must:
         - Exist as a directory
         - Contain global_env.yaml
+        - Contain no `.yaml` stem or subdirectory name with '.' (recursive)
 
         Args:
             cfg_path: Path to validate.
@@ -235,6 +240,54 @@ class GPConfigManager:
             raise ConfigFolderError(
                 f"Config folder must contain global_env.yaml: {cfg_path} (from {source})"
             )
+
+        self._validate_addressable_names(cfg_path)
+
+    def _validate_addressable_names(self, cfg_path: Path) -> None:
+        """Reject '.yaml' stems and directory names containing '.' in the tree.
+
+        Dot-notation addresses configs by splitting on '.', so a `.yaml` stem
+        or directory name containing '.' is listed by list_configs() yet can
+        never be addressed (e.g. `domain_name.com.yaml` is listed as
+        'domain_name.com', but get_config('domain_name.com') looks for
+        `domain_name/com.yaml`). A one-time recursive scan at construction
+        turns that semi-consistent state into a fail-fast error. Literal dots
+        in a config name should be written '@' — a character dot-notation
+        passes through unchanged.
+
+        The cfg_folder's own name is not checked (only entries inside it);
+        non-'.yaml' files are ignored (the manager never lists them).
+
+        Args:
+            cfg_path: Root of the config tree to scan.
+
+        Raises:
+            ConfigFolderError: If any '.yaml' stem or any subdirectory name
+                in the tree contains '.'.
+        """
+        for dirpath, dirnames, filenames in os.walk(cfg_path):
+            for dirname in dirnames:
+                if "." in dirname:
+                    rel = (Path(dirpath) / dirname).relative_to(cfg_path).as_posix()
+                    raise ConfigFolderError(
+                        f"config subdirectory name contains '.' (unaddressable "
+                        f"by dot-notation): {rel} -- rename it without '.' "
+                        f"(a '.' in a name may be written '@', which "
+                        f"dot-notation passes through)"
+                    )
+            for filename in filenames:
+                file_path = Path(dirpath) / filename
+                if file_path.suffix == ".yaml" and "." in file_path.stem:
+                    rel = file_path.relative_to(cfg_path)
+                    suggested = rel.with_name(
+                        file_path.stem.replace(".", "@") + file_path.suffix
+                    )
+                    raise ConfigFolderError(
+                        f"config filename contains '.' (unaddressable by "
+                        f"dot-notation): {rel.as_posix()} -- write it as "
+                        f"{suggested.as_posix()} ('@' stands for '.' in the "
+                        f"config name)"
+                    )
 
     def _load_global_env(self) -> dict:
         """Load global_env.yaml into a dictionary.

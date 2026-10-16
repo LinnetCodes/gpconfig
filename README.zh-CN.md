@@ -67,6 +67,8 @@ password: secret
 database: myapp
 ```
 
+**命名规则：** `.` 是点号表示法的路径分隔符，因此 `.yaml` 文件名和子目录名不得含 `.`（否则构造时抛 `ConfigFolderError`）。想使用含字面 `.` 的名字 —— 例如互联网域名 —— 请把每个 `.` 写作 `@`：`domain_name@com.yaml` 用 `get_config("domain_name@com")` 寻址。`@` 在寻址层是普通透传字符；需要真实 `.` 的消费方库请在客户端自行实现「寻址时转义、加载后还原」（`config.name` 始终返回原始 stem）。详见文档中的[命名规则](docs/zh/manager.md#配置文件夹要求)。
+
 ### 3. 初始化管理器并加载配置
 
 ```python

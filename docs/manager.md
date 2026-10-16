@@ -60,6 +60,7 @@ manager = GPConfigManager("myapp")
 A valid config folder must:
 - Exist and be a directory
 - Contain a `global_env.yaml` file
+- Contain no `.yaml` stem or subdirectory name with `.` anywhere in the tree (recursive)
 
 ```
 myapp/
@@ -81,6 +82,34 @@ Violating these requirements raises `ConfigFolderError` at construction (see **C
 > also trigger it). Rename either the project or the subdirectory if you hit
 > this.
 
+> **Naming rule: `.` separates path segments — write literal dots in names as `@`.**
+>
+> Dot-notation uses `.` as the hierarchy separator (`gpdc.core_domain` →
+> `gpdc/core_domain.yaml`). A `.yaml` file whose stem contains `.` (e.g.
+> `domain_name.com.yaml`) would be listed by `list_configs()` yet never
+> addressable — `get_config("domain_name.com")` looks for
+> `domain_name/com.yaml`. The same applies to subdirectory names containing
+> `.`. Since v0.5.0, `GPConfigManager.__init__` recursively rejects such names
+> with `ConfigFolderError` (the error message suggests the `@` spelling).
+>
+> To use a name that contains a `.` (typically an internet domain, e.g.
+> `domain_name.com`), write every `.` in the **file name** as `@`:
+>
+> | Config name | File on disk | Address |
+> |-------------|--------------|---------|
+> | `domain_name.com` | `gpdc/domain_name@com.yaml` | `gpdc.domain_name@com` |
+>
+> `@` is an ordinary pass-through character at the addressing layer (chosen for
+> its internet-address connotation, `user@host`), so `domain_name@com.yaml`
+> works today without any special handling. The mapping is injective as long as
+> `@` is not a legal character in the consumer's own name grammar.
+>
+> **For consumer libraries:** gpconfig's `config.name` always returns the raw
+> file stem (`domain_name@com`) — no translation. If your library needs names
+> with real dots, implement "escape on addressing, restore after loading"
+> client-side (escape `.` → `@` before calling `get_config`/`get_object`,
+> restore `@` → `.` when consuming `config.name`).
+
 **Constructor Raises:**
 
 `__init__` raises `ConfigFolderError` if any of these conditions hold:
@@ -92,6 +121,7 @@ Violating these requirements raises `ConfigFolderError` at construction (see **C
 | Path is not a directory | The resolved path exists but is a file, not a directory. |
 | Missing `global_env.yaml` | The folder exists and is a directory but has no `global_env.yaml` file. |
 | Project-name collision | A top-level subdirectory of `cfg_folder` shares the `project_name` (see the constraint above). |
+| Dotted names in the tree | Any `.yaml` stem or subdirectory name inside `cfg_folder` contains `.` (unaddressable by dot-notation; write `@` instead — see the naming rule above). |
 
 ## Properties
 
