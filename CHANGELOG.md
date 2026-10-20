@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-20
+
+**PEP 561 typed-package marker release.** gpconfig now ships a `py.typed`
+marker, so downstream type checkers (`mypy --strict`, pyright, etc.) consume
+the library's inline type hints instead of degrading every API to `Any`. No
+public API or behaviour changes.
+
+### Added
+- `py.typed` marker (empty file) shipped inside the package. Downstream `mypy --strict` users no longer need `ignore_missing_imports` overrides for `gpconfig`: previously `import gpconfig` raised `import-untyped` and subclassing `GPConfig` failed with `Class cannot subclass "GPConfig" (has type "Any")`; both are gone with the marker present. The `Typing :: Typed` trove classifier already declared in `pyproject.toml` is now truthful.
+
 ## [0.5.0] - 2026-10-16
 
 **Fail-fast rejection of unaddressable config names.** `GPConfigManager.__init__` now
@@ -121,7 +131,8 @@ and documentation completeness. See the sections below for details.
 - Documented the read-only `global_env` contract (`MappingProxyType`, mutation errors, `dict(...)` copy) in both EN and ZH manager references.
 - Documented the `default_cfg_path` folder-path contract and `__init_subclass__` fail-early validation in both EN and ZH GPConfig references.
 
-[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.5.0...HEAD
+[Unreleased]: https://github.com/LinnetCodes/gpconfig/compare/version-0.5.1...HEAD
+[0.5.1]: https://github.com/LinnetCodes/gpconfig/compare/version-0.5.0...version-0.5.1
 [0.5.0]: https://github.com/LinnetCodes/gpconfig/compare/version-0.4.0...version-0.5.0
 [0.4.0]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.5...version-0.4.0
 [0.3.5]: https://github.com/LinnetCodes/gpconfig/compare/version-0.3.4...version-0.3.5
