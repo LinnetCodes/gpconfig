@@ -17,6 +17,9 @@ public API or behaviour changes.
 ### Added
 - `py.typed` marker (empty file) shipped inside the package. Downstream `mypy --strict` users no longer need `ignore_missing_imports` overrides for `gpconfig`: previously `import gpconfig` raised `import-untyped` and subclassing `GPConfig` failed with `Class cannot subclass "GPConfig" (has type "Any")`; both are gone with the marker present. The `Typing :: Typed` trove classifier already declared in `pyproject.toml` is now truthful.
 
+### Changed
+- The package source now passes `mypy --strict` with zero errors (was 21). Annotation-only changes: generic parameters added to bare `dict` / `MappingProxyType` types, `__init_subclass__` annotated, a `str`/`Path` variable-name collision in the dotted-name validator resolved, an unreachable-`None` invariant in `get_config` made explicit, and `types-PyYAML` + `mypy` added to the dev extras so the strict check is reproducible. No runtime behaviour changes.
+
 ## [0.5.0] - 2026-10-16
 
 **Fail-fast rejection of unaddressable config names.** `GPConfigManager.__init__` now

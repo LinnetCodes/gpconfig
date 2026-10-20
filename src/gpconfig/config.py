@@ -1,7 +1,7 @@
 """GPConfig base class for configuration management."""
 
 from pathlib import Path
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Optional
 
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -30,7 +30,7 @@ class GPConfig(BaseModel):
     cfg_class_name: ClassVar[str] = "GPConfig"
     default_cfg_path: ClassVar[Optional[str]] = None
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         """Validate subclass ClassVars at class-definition time (fail-early).
 
         Ensures default_cfg_path (if overridden by a subclass) conforms to the

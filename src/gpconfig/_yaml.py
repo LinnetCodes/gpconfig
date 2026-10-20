@@ -18,7 +18,10 @@ class _RejectDuplicateKeysSafeLoader(yaml.SafeLoader):
     ) -> dict[Any, Any]:
         """Construct a mapping after rejecting duplicate explicit keys."""
         if not isinstance(node, MappingNode):
-            return super().construct_mapping(node, deep=deep)
+            # Delegate non-mapping nodes to the base constructor, which raises
+            # ConstructorError itself; its stub signature only admits
+            # MappingNode, hence the ignore.
+            return super().construct_mapping(node, deep=deep)  # type: ignore[arg-type]
 
         explicit_key_nodes = [
             key_node

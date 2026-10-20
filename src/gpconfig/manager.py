@@ -148,7 +148,7 @@ class GPConfigManager:
         return self._cfg_folder
 
     @property
-    def global_env(self) -> MappingProxyType:
+    def global_env(self) -> MappingProxyType[str, Any]:
         """Get the global environment configuration (read-only view).
 
         Returns a MappingProxyType view of the internal dict. Reads are fully
@@ -278,18 +278,18 @@ class GPConfigManager:
             for filename in filenames:
                 file_path = Path(dirpath) / filename
                 if file_path.suffix == ".yaml" and "." in file_path.stem:
-                    rel = file_path.relative_to(cfg_path)
-                    suggested = rel.with_name(
+                    rel_path = file_path.relative_to(cfg_path)
+                    suggested = rel_path.with_name(
                         file_path.stem.replace(".", "@") + file_path.suffix
                     )
                     raise ConfigFolderError(
                         f"config filename contains '.' (unaddressable by "
-                        f"dot-notation): {rel.as_posix()} -- write it as "
+                        f"dot-notation): {rel_path.as_posix()} -- write it as "
                         f"{suggested.as_posix()} ('@' stands for '.' in the "
                         f"config name)"
                     )
 
-    def _load_global_env(self) -> dict:
+    def _load_global_env(self) -> dict[str, Any]:
         """Load global_env.yaml into a dictionary.
 
         Returns:
@@ -326,7 +326,7 @@ class GPConfigManager:
                     f"('{self._project_name}')."
                 )
 
-    def _load_yaml_dict(self, file_path: Path, path_for_error: str) -> dict:
+    def _load_yaml_dict(self, file_path: Path, path_for_error: str) -> dict[str, Any]:
         """Load a YAML file and validate it returns a dict.
 
         Args:
@@ -627,7 +627,11 @@ class GPConfigManager:
             # Neither exists
             raise ConfigNotFoundError(path)
 
-        # File loading logic (existing code)
+        # File loading logic (existing code). Reaching here implies
+        # file_exists is True (every other existence combination returned
+        # or raised above), so file_path was parsed and is not None.
+        assert file_path is not None
+
         # Generate cache key
         cache_key = str(file_path)
 
@@ -689,7 +693,7 @@ class GPConfigManager:
         return cached
 
     def _load_config(
-        self, file_path: Path, config_cls: Type[T], data: Optional[dict] = None
+        self, file_path: Path, config_cls: Type[T], data: Optional[dict[str, Any]] = None
     ) -> T:
         """Load a config from a YAML file.
 
@@ -709,7 +713,7 @@ class GPConfigManager:
         config.cfg_file_path = file_path
         return config
 
-    def _get_nested_value(self, data: dict, key_path: str, full_path: str) -> Any:
+    def _get_nested_value(self, data: dict[str, Any], key_path: str, full_path: str) -> Any:
         """Get a nested value from a dict using dot notation."""
         keys = key_path.split(".")
         current = data
@@ -999,7 +1003,7 @@ class GPConfigManager:
         cls,
         project_name: str,
         cfgs: List["GPConfig"],
-        global_env: Optional[dict] = None,
+        global_env: Optional[dict[str, Any]] = None,
         cfg_folder_path: Optional[str | Path] = None,
     ) -> Path:
         """Create a new project configuration folder with initial configs.
