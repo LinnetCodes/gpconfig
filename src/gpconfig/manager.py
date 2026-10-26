@@ -708,6 +708,16 @@ class GPConfigManager:
         if data is None:
             data = self._load_yaml_dict(file_path, str(file_path))
 
+        # Inject the file stem as name before construction so subclasses that
+        # redeclare `name` as a required business field (e.g. gpmq
+        # SubscriberConfig) can load files without a name key — validation
+        # runs during construction, before the post-construction backfill
+        # below could supply it. For files that already carry a name key the
+        # injection is a no-op, and the backfill still enforces the
+        # name-equals-stem convention either way.
+        if "name" not in data:
+            data["name"] = file_path.stem
+
         config = config_cls(**data)
         config.name = file_path.stem
         config.cfg_file_path = file_path
