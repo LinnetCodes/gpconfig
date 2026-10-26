@@ -374,6 +374,8 @@ def get_config(
 - 如果路径指向特定键，返回该键的值
 - 否则返回原始字典
 
+**加载行为 —— `name` 注入：** 文件中的每一个 YAML 键（剥离 `cfg_class_name` ClassVar 之后）都会传给配置类构造器，并被记为"显式设置"（`model_fields_set`）。若文件没有 `name` 键，则在构造前注入文件 stem——因此把 `name` 重声明为**必填**业务字段（无默认值）的子类也能加载省略了 `name` 的最小字段文件。构造完成后，`config.name` 总会被文件 stem 覆盖：无论 YAML 中是否有显式 `name` 键，文件名始终是 `name` 的单一事实源。
+
 #### 文件夹与文件同名冲突
 
 当文件夹与 `.yaml` 文件同名（例如 `services/` 和 `services.yaml`）时，默认行为是**文件夹优先**——`get_config` 返回 `GPConfigFolder`。有两种方式可以强制文件胜出：
@@ -544,6 +546,8 @@ new_config = DatabaseConfig(
 new_config.name = "test"
 manager.save(new_config)  # 保存到 default_cfg_path/test.yaml
 ```
+
+**注意：** 保存的文件只包含**显式设置过**的字段——构造器关键字参数、构造后的属性赋值、或配置加载来源 YAML 中已有的键。保持类默认值的字段不会写入，因此文件是一份覆盖文档，不会把陈旧的默认值烤进配置树（完整语义见 [`GPConfig.save()`](gpconfig.md#save)）。
 
 ### invalidate_cache()
 

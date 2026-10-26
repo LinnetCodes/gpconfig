@@ -23,6 +23,18 @@ class LLMConfig(GPConfig):
     temperature: float = 0.7
 
 
+class NamedWorkerConfig(GPConfig):
+    """Config that redeclares `name` as required.
+
+    The gpmq SubscriberConfig pattern: `name` is a business field (consumer
+    group), not just manager metadata, so the subclass tightens the base
+    `name: str = ""` default into a required field.
+    """
+
+    name: str
+    workers: int = 1
+
+
 @pytest.fixture
 def manager_with_configs(tmp_path: Path) -> GPConfigManager:
     """Create a manager with a populated config folder."""
@@ -175,3 +187,47 @@ class TestGetConfigFolderDetection:
         folder = manager_with_configs.get_config("llm")
         config = folder.get_config("openai", LLMConfig)
         assert config.model == "gpt-4"
+
+
+class TestLoadNameInjection:
+    """_load_config injects the file stem as name before validation.
+
+    Locked in by dev_docs/gpconfig-save-minimal-fields.md (proposal 2a):
+    subclasses may redeclare `name` as required, but validation runs before
+    the post-construction stem backfill — a YAML without a name key (which
+    save() always produces, since name is metadata excluded from the dump)
+    failed validation and was unloadable for such subclasses.
+    """
+
+    def test_loads_yaml_without_name_for_required_name_subclass(self, tmp_path: Path):
+        """YAML without a name key loads for a required-name subclass.
+
+        The stem is injected before construction, so validation passes and
+        the injected name lands in fields_set exactly like an explicit YAML
+        key (relevant for exclude_unset merge consumers).
+        """
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        (tmp_path / "dataloader.yaml").write_text("workers: 4\n")
+
+        manager = GPConfigManager("testproject", cfg_folder=tmp_path)
+        config = manager.get_config("dataloader", NamedWorkerConfig)
+
+        assert config.name == "dataloader"
+        assert config.workers == 4
+        assert "name" in config.model_fields_set
+
+    def test_explicit_name_in_yaml_is_overridden_by_stem(self, tmp_path: Path):
+        """Existing semantics preserved: the file stem always wins.
+
+        An explicit name key in the YAML is accepted at construction but the
+        post-construction backfill still overwrites it with the stem — the
+        file name is the single source of truth for name.
+        """
+        (tmp_path / "global_env.yaml").write_text("version: 1.0\n")
+        (tmp_path / "dataloader.yaml").write_text("name: something-else\nworkers: 2\n")
+
+        manager = GPConfigManager("testproject", cfg_folder=tmp_path)
+        config = manager.get_config("dataloader", NamedWorkerConfig)
+
+        assert config.name == "dataloader"
+        assert config.workers == 2

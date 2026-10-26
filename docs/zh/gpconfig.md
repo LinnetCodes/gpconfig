@@ -185,10 +185,21 @@ config.save()
 
 **注意事项：**
 
+- `save()` 只写**显式设置过**的字段——传给构造器的字段、构造后通过属性赋值设置的字段、以及配置加载来源 YAML 中已有的字段。保持类默认值的字段不会写入；重新加载时它们回落到类默认值。这使保存的文件是一份*覆盖文档*，不会把类默认值烤进配置树（否则会破坏下游 `exclude_unset` 合并语义）。嵌套模型递归遵循同一规则
 - `save()` 会排除所有元数据字段（`name`、`cfg_file_path`、`readonly`、`configured_class_name`）
 - `cfg_class_name`（ClassVar）始终会被包含在保存的 YAML 中
 - `configured_class_name` 仅在已设置时才会被加回（None → 完全不写入）
 - 配置必须是可写的（`readonly=False`）
+- 往返特性：全字段文件（如 gpconfig < 0.6.0 写出的）加载后再保存仍保留全部字段——加载会把 YAML 的每个键记为显式设置，因此文件不会自行瘦身
+
+例如，`ServerConfig(port=9000)` 保存为：
+
+```yaml
+cfg_class_name: ServerConfig
+port: 9000
+```
+
+需要全字段模板文件？构造时显式设置每一个字段——在 `exclude_unset` 语义下，你显式设置的一切都会被写出。
 
 ## 类型验证
 
