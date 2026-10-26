@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-26
+
+**Minimal-field save products and load-side `name` injection.** `GPConfig.save()` now writes only
+explicitly set fields, and the loader injects the file stem as `name` before validation. Together
+these fix a save→load round-trip defect reported in `dev_docs/gpconfig-save-minimal-fields.md`:
+full-field save products baked class defaults into the YAML, and since the loader records every
+YAML key as "explicitly set" (`fields_set`), those stale defaults defeated downstream
+`exclude_unset` merge protection (e.g. gpmq `get_subscriber`/`get_client`) — silently overriding
+common configuration. Separately, subclasses that redeclare `name` as a required business field
+(e.g. gpmq `SubscriberConfig`) could not load their own save products at all, because save never
+writes `name` and validation ran before the stem backfill.
+
+### Changed
+- **BREAKING (behaviour):** `GPConfig.save()` — and therefore `GPConfigManager.save()`, which
+  delegates to it — emits only explicitly set fields: constructor kwargs, post-construction
+  attribute assignments, or keys present in the YAML the config was loaded from; nested models
+  follow the same rule recursively. Fields left at class defaults are omitted; they fall back to
+  the defaults on reload, so the effective configuration is unchanged — files shrink to override
+  documents that no longer bake stale defaults into the config tree. A full-field file written by
+  earlier versions, once reloaded and re-saved, keeps all its fields (loading marks every YAML key
+  as explicitly set; it does not self-slim). If you need a full-field template file, construct the
+  config with every field set explicitly.
+
+### Fixed
+- Loading a YAML file that omits `name` for a config class that redeclares `name` as a required
+  field no longer raises `ConfigValidationError`: the file stem is injected before construction
+  (and lands in `model_fields_set` exactly like an explicit YAML key). The stem still overwrites
+  any explicit `name` key after construction — the name-equals-stem convention is unchanged.
+
 ## [0.5.1] - 2026-10-20
 
 **PEP 561 typed-package marker release.** gpconfig now ships a `py.typed`
