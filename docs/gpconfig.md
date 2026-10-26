@@ -185,10 +185,21 @@ config.save()
 
 **Notes:**
 
+- `save()` writes only **explicitly set** fields — fields passed to the constructor, assigned as attributes afterwards, or present in the YAML the config was loaded from. Fields left at their class defaults are omitted; they fall back to the defaults on reload. This keeps a saved file an *override document* that never bakes class defaults into the config tree (where they would defeat downstream `exclude_unset` merging). Nested models follow the same rule recursively
 - `save()` excludes all metadata fields (`name`, `cfg_file_path`, `readonly`, `configured_class_name`) from the dump
 - `cfg_class_name` (a ClassVar) is always included in the saved YAML
 - `configured_class_name` is added back only when set (None → omitted entirely)
 - The config must be writable (`readonly=False`)
+- Round-trip characteristic: a full-field file (e.g. written by gpconfig < 0.6.0) reloaded and re-saved keeps all its fields — loading records every YAML key as explicitly set, so the file does not self-slim
+
+For example, `ServerConfig(port=9000)` saves:
+
+```yaml
+cfg_class_name: ServerConfig
+port: 9000
+```
+
+Need a full-field template file instead? Construct the config with every field set explicitly — under `exclude_unset` semantics everything you set explicitly gets written.
 
 ## Type Validation
 

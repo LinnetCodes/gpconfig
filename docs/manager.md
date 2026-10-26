@@ -381,6 +381,8 @@ def get_config(
 - If path points to a specific key, returns that key's value
 - Otherwise returns the raw dictionary
 
+**Loading behaviour — `name` injection:** every YAML key in the file is passed to the config class constructor, which records it as "explicitly set" (`model_fields_set`). If the file has no `name` key, the file stem is injected before construction — so subclasses that redeclare `name` as a **required** business field (no default) can load minimal files that omit it. After construction, `config.name` is always overwritten with the file stem: the file name is the single source of truth for `name`, regardless of any explicit `name` key in the YAML.
+
 #### Folder/file name collision
 
 When both a folder and a `.yaml` file share the same name (e.g. `services/` and `services.yaml`), the default behaviour is **folder priority** — `get_config` returns a `GPConfigFolder`. There are two ways to force the file to win:
@@ -554,6 +556,8 @@ new_config = DatabaseConfig(
 new_config.name = "test"
 manager.save(new_config)  # Save to default_cfg_path/test.yaml
 ```
+
+**Note:** the saved file contains only **explicitly set** fields — constructor kwargs, post-construction attribute assignments, or keys present in the YAML the config was loaded from. Fields left at class defaults are omitted, so the file is an override document that never bakes stale defaults into the config tree (full semantics under [`GPConfig.save()`](gpconfig.md#save)).
 
 ### invalidate_cache()
 
