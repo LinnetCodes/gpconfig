@@ -1,9 +1,10 @@
 """Tests for GPConfig base class."""
 
 import pytest
+import yaml
 from pathlib import Path
 from typing import ClassVar
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from gpconfig.config import GPConfig
 
 
@@ -416,3 +417,104 @@ class TestSaveMetadataHandling:
         assert reloaded.enabled == original.enabled
         assert reloaded.cfg_class_name == original.cfg_class_name
         assert reloaded.configured_class_name == original.configured_class_name
+
+
+class HandlerEntry(BaseModel):
+    """Plain pydantic nested model (the realistic nesting pattern, e.g. gpmq
+    HandlerConfig — nested models are not GPConfig subclasses)."""
+
+    action: str
+    timeout: float = 30.0
+
+
+class JobConfig(GPConfig):
+    """Test config with a nested model field for minimal-dump tests."""
+
+    cfg_class_name: ClassVar[str] = "JobConfig"
+    handler: HandlerEntry
+    workers: int = 1
+
+
+class TestSaveMinimalFields:
+    """Save emits only explicitly-set fields (exclude_unset semantics).
+
+    Locked in by dev_docs/gpconfig-save-minimal-fields.md (proposal 1a): a
+    save product must not bake class defaults into the YAML, because the
+    loader records every YAML key as "explicitly set" (fields_set), and
+    downstream exclude_unset merges would otherwise be overridden by the
+    stale defaults the file carries.
+    """
+
+    def test_save_writes_only_explicitly_set_fields(self, tmp_path: Path):
+        """Fields left at class defaults are omitted from the saved YAML."""
+        config = ServiceConfig(service_port=6543)
+        config.cfg_file_path = tmp_path / "service.yaml"
+        config.save()
+
+        saved = yaml.safe_load(config.cfg_file_path.read_text(encoding="utf-8"))
+        assert saved["cfg_class_name"] == "ServiceConfig"
+        assert saved["service_port"] == 6543
+        assert "service_host" not in saved
+        assert "enabled" not in saved
+
+    def test_save_keeps_field_explicitly_set_to_default_value(self, tmp_path: Path):
+        """Explicitly setting a field to its default value is preserved.
+
+        Intent semantics (exclude_unset, not exclude_defaults): a caller who
+        pins `enabled=True` explicitly wants it in the file even though it
+        equals the class default.
+        """
+        config = ServiceConfig(enabled=True)
+        config.cfg_file_path = tmp_path / "service.yaml"
+        config.save()
+
+        saved = yaml.safe_load(config.cfg_file_path.read_text(encoding="utf-8"))
+        assert saved["enabled"] is True
+
+    def test_save_captures_post_construction_mutation(self, tmp_path: Path):
+        """Attribute assignment after construction counts as explicitly set."""
+        config = ServiceConfig()
+        config.service_host = "manual.internal"
+        config.cfg_file_path = tmp_path / "service.yaml"
+        config.save()
+
+        saved = yaml.safe_load(config.cfg_file_path.read_text(encoding="utf-8"))
+        assert saved["service_host"] == "manual.internal"
+        assert "service_port" not in saved
+        assert "enabled" not in saved
+
+    def test_save_minimizes_nested_models(self, tmp_path: Path):
+        """exclude_unset applies recursively to nested BaseModel fields."""
+        config = JobConfig(handler=HandlerEntry(action="sync"))
+        config.cfg_file_path = tmp_path / "job.yaml"
+        config.save()
+
+        saved = yaml.safe_load(config.cfg_file_path.read_text(encoding="utf-8"))
+        assert saved["handler"] == {"action": "sync"}
+        assert "workers" not in saved
+
+    def test_loaded_full_field_config_resaves_full(self, tmp_path: Path):
+        """Load-style construction (all YAML keys explicit) saves all fields.
+
+        Documents the non-degrading characteristic: fields_set of a loaded
+        config equals the YAML key set, so an old full-field file round-trips
+        unchanged — it does not self-slim on re-save.
+        """
+        original = ServiceConfig(
+            service_host="db.internal", service_port=6543, enabled=False
+        )
+        original.cfg_file_path = tmp_path / "service.yaml"
+        original.save()
+
+        # Reload the same way the manager does: parse YAML, drop the ClassVar
+        # cfg_class_name, then construct the config from the remaining fields.
+        raw_data = yaml.safe_load(original.cfg_file_path.read_text(encoding="utf-8"))
+        data_for_config = {k: v for k, v in raw_data.items() if k != "cfg_class_name"}
+        reloaded = ServiceConfig(**data_for_config)
+        reloaded.cfg_file_path = tmp_path / "service.yaml"
+        reloaded.save()
+
+        resaved = yaml.safe_load(reloaded.cfg_file_path.read_text(encoding="utf-8"))
+        assert resaved["service_host"] == "db.internal"
+        assert resaved["service_port"] == 6543
+        assert resaved["enabled"] is False

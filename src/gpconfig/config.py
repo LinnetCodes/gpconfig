@@ -79,14 +79,28 @@ class GPConfig(BaseModel):
     def save(self) -> None:
         """Save current config state back to the YAML file.
 
+        Only fields that were explicitly set are written: fields passed to
+        the constructor, assigned as attributes afterwards, or present in the
+        YAML the config was loaded from (loading records every YAML key as
+        explicitly set). Fields left at their class defaults are omitted —
+        they fall back to the defaults on reload, so a saved file stays an
+        override document and never bakes stale defaults into the config
+        tree. Nested models follow the same rule recursively.
+
+        Note the round-trip characteristic: a full-field file (e.g. written
+        by gpconfig < 0.6.0) reloaded and re-saved keeps all its fields; it
+        does not self-slim.
+
         Raises:
             ConfigReadonlyError: If readonly is True
         """
         if self.readonly:
             raise ConfigReadonlyError(self.name)
 
-        # All metadata fields are excluded from the dump uniformly;
-        # fields that need to appear in the YAML are added back explicitly below.
+        # All metadata fields are excluded from the dump uniformly; fields
+        # that need to appear in the YAML are added back explicitly below.
+        # exclude_unset keeps the file minimal: what the caller explicitly
+        # set is what gets written.
         data = self.model_dump(
             mode="python",
             exclude={
@@ -95,6 +109,7 @@ class GPConfig(BaseModel):
                 "readonly",
                 "configured_class_name",
             },
+            exclude_unset=True,
         )
 
         # cfg_class_name is a mandatory ClassVar — always written.
