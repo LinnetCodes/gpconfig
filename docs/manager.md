@@ -381,7 +381,7 @@ def get_config(
 - If path points to a specific key, returns that key's value
 - Otherwise returns the raw dictionary
 
-**Loading behaviour — `name` injection:** every YAML key in the file is passed to the config class constructor, which records it as "explicitly set" (`model_fields_set`). If the file has no `name` key, the file stem is injected before construction — so subclasses that redeclare `name` as a **required** business field (no default) can load minimal files that omit it. After construction, `config.name` is always overwritten with the file stem: the file name is the single source of truth for `name`, regardless of any explicit `name` key in the YAML.
+**Loading behaviour — `name` injection:** every YAML key in the file (after the `cfg_class_name` ClassVar is stripped) is passed to the config class constructor, which records it as "explicitly set" (`model_fields_set`). If the file has no `name` key, the file stem is injected before construction — so subclasses that redeclare `name` as a **required** business field (no default) can load minimal files that omit it. After construction, `config.name` is always overwritten with the file stem: the file name is the single source of truth for `name`, regardless of any explicit `name` key in the YAML.
 
 #### Folder/file name collision
 
